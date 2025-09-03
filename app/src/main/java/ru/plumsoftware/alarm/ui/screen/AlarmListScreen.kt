@@ -8,10 +8,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -22,11 +20,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import com.commandiron.wheel_picker_compose.WheelTimePicker
 import ru.plumsoftware.alarm.data.Alarm
 import ru.plumsoftware.alarm.data.AlarmManagerHelper
 import ru.plumsoftware.alarm.data.AlarmRepository
@@ -41,10 +40,22 @@ fun AlarmListScreen(navController: NavController, context: Context) {
     val repository = remember { AlarmRepository(context) }
     val coroutineScope = rememberCoroutineScope()
     var alarms by remember { mutableStateOf<List<Alarm>>(emptyList()) }
+    val modalSheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true
+    )
+    var showBottomSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         repository.getAllAlarms().collectLatest { list ->
             alarms = list
+        }
+
+        coroutineScope.launch {
+            if (showBottomSheet) {
+                modalSheetState.expand()
+            } else {
+                modalSheetState.hide()
+            }
         }
     }
 
@@ -66,7 +77,9 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                 title = {},
                 actions = {
                     IconButton(
-                        onClick = { navController.navigate("new_alarm") },
+                        onClick = {
+                            showBottomSheet = true
+                        },
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Add,
@@ -124,6 +137,66 @@ fun AlarmListScreen(navController: NavController, context: Context) {
             }
         }
     }
+
+    if (showBottomSheet) {
+        ModalBottomSheet(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(top = 48.dp),
+            onDismissRequest = { showBottomSheet = false },
+            sheetState = modalSheetState,
+            contentWindowInsets = {
+                BottomSheetDefaults.windowInsets
+                    .add(WindowInsets.navigationBars)
+                    .add(WindowInsets.statusBars)
+            },
+            dragHandle = null,
+            properties = ModalBottomSheetProperties(shouldDismissOnBackPress = true)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(
+                    space = 16.dp,
+                    alignment = Alignment.Top
+                ),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(
+                        space = 4.dp,
+                        alignment = Alignment.CenterHorizontally
+                    )
+                ) {
+                    Text(
+                        modifier = Modifier.clickable(true) {
+                            showBottomSheet = false
+                        },
+                        text = "Отменить",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "Добавить будильник",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                    Text(
+                        modifier = Modifier.clickable(true) {
+                            showBottomSheet = false
+                        },
+                        text = "Сохранить",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                WheelTimePicker { snappedTime ->
+
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -153,7 +226,7 @@ fun AlarmItem(
     )
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(
             space = 8.dp,
             alignment = Alignment.CenterVertically
@@ -161,8 +234,8 @@ fun AlarmItem(
         horizontalAlignment = Alignment.Start
     ) {
         HorizontalDivider(
-            modifier = Modifier.fillMaxWidth(),
-            thickness = 2.dp,
+            modifier = Modifier.fillMaxWidth().clip(CircleShape),
+            thickness = 1.dp,
             color = DividerDefaults.color
         )
         Row(

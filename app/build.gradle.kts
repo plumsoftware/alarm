@@ -72,4 +72,5 @@ dependencies {
     kapt("androidx.room:room-compiler:2.6.1")
     implementation("androidx.navigation:navigation-compose:2.8.0-beta06")
     implementation("com.google.code.gson:gson:2.11.0")
+    implementation("com.github.commandiron:WheelPickerCompose:1.1.11")
 }
