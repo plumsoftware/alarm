@@ -25,6 +25,7 @@ import ru.plumsoftware.alarm.ui.theme.AlarmTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
             AlarmTheme {
                 Surface(
