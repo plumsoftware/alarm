@@ -1,5 +1,6 @@
 package ru.plumsoftware.alarm.ui.screen
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,18 +15,37 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import android.content.Context
+import android.content.Intent
+import android.icu.util.Calendar
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpSize
 import com.commandiron.wheel_picker_compose.WheelTimePicker
+import com.commandiron.wheel_picker_compose.core.WheelPickerDefaults
 import ru.plumsoftware.alarm.data.Alarm
 import ru.plumsoftware.alarm.data.AlarmManagerHelper
 import ru.plumsoftware.alarm.data.AlarmRepository
@@ -33,7 +53,12 @@ import ru.plumsoftware.alarm.ui.Constants
 import ru.plumsoftware.alarm.ui.components.SecondaryButton
 import ru.plumsoftware.alarm.ui.theme.primaryColor
 import ru.plumsoftware.alarm.ui.theme.switchCheckedColor
+import java.time.LocalTime
+import androidx.core.net.toUri
+import ru.plumsoftware.alarm.ui.theme.alarmCardColor
+import ru.plumsoftware.alarm.ui.theme.alarmGrayTextColor
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlarmListScreen(navController: NavController, context: Context) {
@@ -44,6 +69,10 @@ fun AlarmListScreen(navController: NavController, context: Context) {
         skipPartiallyExpanded = true
     )
     var showBottomSheet by remember { mutableStateOf(false) }
+    var alarmId by remember { mutableIntStateOf(-1) }
+
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp.dp
 
     LaunchedEffect(Unit) {
         repository.getAllAlarms().collectLatest { list ->
@@ -139,6 +168,25 @@ fun AlarmListScreen(navController: NavController, context: Context) {
     }
 
     if (showBottomSheet) {
+        var alarmName by remember { mutableStateOf("") }
+        val repository = remember { AlarmRepository(context) }
+        val coroutineScope = rememberCoroutineScope()
+        val now = Calendar.getInstance()
+        var alarm by remember {
+            mutableStateOf(
+                Alarm(
+                    hour = now.get(java.util.Calendar.HOUR_OF_DAY),
+                    minute = now.get(java.util.Calendar.MINUTE)
+                )
+            )
+        }
+        val alarmManager =
+            remember { context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager }
+
+        val launcher = rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { /* After returning from settings, can check again if needed */ }
+
         ModalBottomSheet(
             modifier = Modifier
                 .fillMaxHeight()
@@ -154,9 +202,11 @@ fun AlarmListScreen(navController: NavController, context: Context) {
             properties = ModalBottomSheetProperties(shouldDismissOnBackPress = true)
         ) {
             Column(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(
-                    space = 16.dp,
+                    space = 24.dp,
                     alignment = Alignment.Top
                 ),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -164,10 +214,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(
-                        space = 4.dp,
-                        alignment = Alignment.CenterHorizontally
-                    )
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         modifier = Modifier.clickable(true) {
@@ -185,14 +232,206 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                     )
                     Text(
                         modifier = Modifier.clickable(true) {
-                            showBottomSheet = false
+                            val canSchedule = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                alarmManager.canScheduleExactAlarms()
+                            } else true
+                            if (canSchedule) {
+                                coroutineScope.launch {
+                                    val savedAlarm = if (alarmId == -1) {
+                                        repository.insert(alarm)
+                                        alarm  // Note: id is auto-generated, but for simplicity, assume we refetch or update
+                                    } else {
+                                        repository.update(alarm.copy(id = alarmId))
+                                        alarm.copy(id = alarmId)
+                                    }
+                                    AlarmManagerHelper.setAlarm(context, savedAlarm)
+                                    navController.popBackStack()
+                                }.invokeOnCompletion {
+                                    showBottomSheet = false
+                                }
+                            } else {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                    val intent =
+                                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                            data = "package:${context.packageName}".toUri()
+                                        }
+                                    launcher.launch(intent)
+                                }
+                            }
                         },
                         text = "Сохранить",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
-                WheelTimePicker { snappedTime ->
+                WheelTimePicker(
+                    size = DpSize((screenWidthDp.value - 32).dp, 200.dp),
+                    textStyle = MaterialTheme.typography.titleSmall,
+                    textColor = Color.White,
+                    selectorProperties = WheelPickerDefaults.selectorProperties(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.05f),
+                        border = BorderStroke(width = 0.dp, color = Color.Transparent)
+                    )
+                ) { snappedTime ->
+                    alarm = alarm.copy(hour = snappedTime.hour, minute = snappedTime.minute)
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .wrapContentHeight(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(
+                                RoundedCornerShape(
+                                    topEnd = 10.dp,
+                                    topStart = 10.dp,
+                                    bottomEnd = 0.dp,
+                                    bottomStart = 0.dp
+                                )
+                            )
+                            .background(
+                                alarmCardColor, RoundedCornerShape(
+                                    topEnd = 10.dp,
+                                    topStart = 10.dp,
+                                    bottomEnd = 0.dp,
+                                    bottomStart = 0.dp
+                                )
+                            )
+                            .clickable(enabled = true) {
 
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    )
+                    {
+                        Text(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                            text = "Повтор",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = Color.White
+                            )
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .padding(horizontal = 8.dp, vertical = 8.dp)
+                                .wrapContentSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(
+                                space = 4.dp,
+                                alignment = Alignment.CenterHorizontally
+                            )
+                        ) {
+                            Text(
+                                text = "Никогда",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color = alarmGrayTextColor
+                                )
+                            )
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = alarmGrayTextColor
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                alarmCardColor, RectangleShape
+                            )
+                            .clickable(enabled = true) {},
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    )
+                    {
+                        Text(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                            text = "Название",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = Color.White
+                            )
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .padding(horizontal = 8.dp, vertical = 8.dp)
+                                .wrapContentSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            BasicTextField(
+                                value = alarmName,
+                                maxLines = 1,
+                                onValueChange = { alarmName = it },
+                                modifier = Modifier.wrapContentSize(),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                    color = alarmGrayTextColor,
+                                    textAlign = TextAlign.End
+                                ),
+                                cursorBrush = SolidColor(primaryColor),
+                                decorationBox = { innerTextField ->
+                                    Box(
+                                        modifier = Modifier
+                                            .wrapContentSize(align = Alignment.CenterEnd)
+                                            .padding(end = 8.dp),
+                                        contentAlignment = Alignment.CenterEnd
+                                    ) {
+                                        val trailingPadding = if (alarmName.isNotEmpty()) 20.dp else 0.dp
+                                        Box(
+                                            modifier = Modifier.padding(end = trailingPadding)
+                                        ) {
+                                            innerTextField()
+                                        }
+
+                                        if (alarmName.isEmpty()) {
+                                            Text(
+                                                text = "Будильник",
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    color = alarmGrayTextColor.copy(alpha = 0.5f),
+                                                    textAlign = TextAlign.End
+                                                ),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(end = if (alarmName.isEmpty()) 0.dp else 8.dp)
+                                            )
+                                        }
+
+                                        if (alarmName.isNotEmpty()) {
+                                            IconButton(
+                                                modifier = Modifier
+                                                    .size(16.dp)
+                                                    .clip(CircleShape),
+                                                colors = IconButtonDefaults.iconButtonColors(
+                                                    containerColor = alarmGrayTextColor.copy(alpha = 0.5f),
+                                                    contentColor = alarmCardColor
+                                                ),
+                                                onClick = { alarmName = "" }
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Clear,
+                                                    contentDescription = null
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Row {
+                    Text("Отложить")
+                    Switch(
+                        checked = alarm.snoozeEnabled,
+                        onCheckedChange = { alarm = alarm.copy(snoozeEnabled = it) }
+                    )
                 }
             }
         }
@@ -226,7 +465,9 @@ fun AlarmItem(
     )
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(
             space = 8.dp,
             alignment = Alignment.CenterVertically
@@ -234,7 +475,9 @@ fun AlarmItem(
         horizontalAlignment = Alignment.Start
     ) {
         HorizontalDivider(
-            modifier = Modifier.fillMaxWidth().clip(CircleShape),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(CircleShape),
             thickness = 1.dp,
             color = DividerDefaults.color
         )

@@ -17,6 +17,11 @@ val Typography = Typography(
         color = Color.White,
         fontSize = 48.sp
     ),
+    titleSmall = TextStyle(
+        fontWeight = FontWeight.Normal,
+        color = Color.White,
+        fontSize = 24.sp
+    ),
     bodyMedium = TextStyle(
         fontWeight = FontWeight.Normal,
         color = primaryColor,
