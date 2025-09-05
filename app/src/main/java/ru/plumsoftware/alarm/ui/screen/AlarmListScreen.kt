@@ -17,7 +17,6 @@ import kotlinx.coroutines.launch
 import android.content.Context
 import android.content.Intent
 import android.icu.util.Calendar
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -35,13 +34,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Clear
-import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import com.commandiron.wheel_picker_compose.WheelTimePicker
@@ -53,7 +50,6 @@ import ru.plumsoftware.alarm.ui.Constants
 import ru.plumsoftware.alarm.ui.components.SecondaryButton
 import ru.plumsoftware.alarm.ui.theme.primaryColor
 import ru.plumsoftware.alarm.ui.theme.switchCheckedColor
-import java.time.LocalTime
 import androidx.core.net.toUri
 import ru.plumsoftware.alarm.ui.theme.alarmCardColor
 import ru.plumsoftware.alarm.ui.theme.alarmGrayTextColor
@@ -66,7 +62,10 @@ fun AlarmListScreen(navController: NavController, context: Context) {
     val coroutineScope = rememberCoroutineScope()
     var alarms by remember { mutableStateOf<List<Alarm>>(emptyList()) }
     val modalSheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true
+        skipPartiallyExpanded = true,
+        confirmValueChange = { targetValue ->
+            targetValue != SheetValue.Hidden
+        }
     )
     var showBottomSheet by remember { mutableStateOf(false) }
     var alarmId by remember { mutableIntStateOf(-1) }
@@ -187,6 +186,18 @@ fun AlarmListScreen(navController: NavController, context: Context) {
             ActivityResultContracts.StartActivityForResult()
         ) { /* After returning from settings, can check again if needed */ }
 
+        val trackColor by animateColorAsState(
+            targetValue = if (alarm.snoozeEnabled) switchCheckedColor else Color.White.copy(0.1f),
+            animationSpec = tween(durationMillis = Constants.SWITCH_ANIM_DELAY),
+            label = "trackColorAnimation"
+        )
+
+        val thumbOffset by animateDpAsState(
+            targetValue = if (alarm.snoozeEnabled) 18.dp else 0.dp,
+            animationSpec = tween(durationMillis = Constants.SWITCH_ANIM_DELAY),
+            label = "thumbOffsetAnimation"
+        )
+
         ModalBottomSheet(
             modifier = Modifier
                 .fillMaxHeight()
@@ -232,9 +243,10 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                     )
                     Text(
                         modifier = Modifier.clickable(true) {
-                            val canSchedule = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                alarmManager.canScheduleExactAlarms()
-                            } else true
+                            val canSchedule =
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                    alarmManager.canScheduleExactAlarms()
+                                } else true
                             if (canSchedule) {
                                 coroutineScope.launch {
                                     val savedAlarm = if (alarmId == -1) {
@@ -264,7 +276,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                     )
                 }
                 WheelTimePicker(
-                    size = DpSize((screenWidthDp.value - 32).dp, 200.dp),
+                    size = DpSize((screenWidthDp.value - 32).dp, 250.dp),
                     textStyle = MaterialTheme.typography.titleSmall,
                     textColor = Color.White,
                     selectorProperties = WheelPickerDefaults.selectorProperties(
@@ -285,6 +297,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .height(48.dp)
                             .clip(
                                 RoundedCornerShape(
                                     topEnd = 10.dp,
@@ -309,7 +322,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                     )
                     {
                         Text(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                             text = "Повтор",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 color = Color.White
@@ -318,7 +331,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
 
                         Row(
                             modifier = Modifier
-                                .padding(horizontal = 8.dp, vertical = 8.dp)
+                                .padding(horizontal = 12.dp, vertical = 12.dp)
                                 .wrapContentSize(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(
@@ -343,6 +356,23 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(
+                                alarmCardColor, RoundedCornerShape(
+                                    topEnd = 10.dp,
+                                    topStart = 10.dp,
+                                    bottomEnd = 0.dp,
+                                    bottomStart = 0.dp
+                                )
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), thickness = 1.dp)
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .background(
                                 alarmCardColor, RectangleShape
                             )
                             .clickable(enabled = true) {},
@@ -351,7 +381,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                     )
                     {
                         Text(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                             text = "Название",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 color = Color.White
@@ -360,7 +390,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
 
                         Row(
                             modifier = Modifier
-                                .padding(horizontal = 8.dp, vertical = 8.dp)
+                                .padding(horizontal = 12.dp, vertical = 12.dp)
                                 .wrapContentSize(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -382,7 +412,8 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                             .padding(end = 8.dp),
                                         contentAlignment = Alignment.CenterEnd
                                     ) {
-                                        val trailingPadding = if (alarmName.isNotEmpty()) 20.dp else 0.dp
+                                        val trailingPadding =
+                                            if (alarmName.isNotEmpty()) 20.dp else 0.dp
                                         Box(
                                             modifier = Modifier.padding(end = trailingPadding)
                                         ) {
@@ -408,7 +439,9 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                                     .size(16.dp)
                                                     .clip(CircleShape),
                                                 colors = IconButtonDefaults.iconButtonColors(
-                                                    containerColor = alarmGrayTextColor.copy(alpha = 0.5f),
+                                                    containerColor = alarmGrayTextColor.copy(
+                                                        alpha = 0.5f
+                                                    ),
                                                     contentColor = alarmCardColor
                                                 ),
                                                 onClick = { alarmName = "" }
@@ -424,14 +457,157 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                             )
                         }
                     }
-                }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                alarmCardColor, RoundedCornerShape(
+                                    topEnd = 10.dp,
+                                    topStart = 10.dp,
+                                    bottomEnd = 0.dp,
+                                    bottomStart = 0.dp
+                                )
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), thickness = 1.dp)
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .background(
+                                alarmCardColor, RectangleShape
+                            )
+                            .clickable(enabled = true) {
 
-                Row {
-                    Text("Отложить")
-                    Switch(
-                        checked = alarm.snoozeEnabled,
-                        onCheckedChange = { alarm = alarm.copy(snoozeEnabled = it) }
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     )
+                    {
+                        Text(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                            text = "Мелодия",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = Color.White
+                            )
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .padding(horizontal = 12.dp, vertical = 12.dp)
+                                .wrapContentSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .padding(horizontal = 0.dp, vertical = 0.dp)
+                                    .wrapContentSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(
+                                    space = 4.dp,
+                                    alignment = Alignment.CenterHorizontally
+                                )
+                            ) {
+                                Text(
+                                    text = "Отражение",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        color = alarmGrayTextColor
+                                    )
+                                )
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = alarmGrayTextColor
+                                )
+                            }
+                        }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                alarmCardColor, RoundedCornerShape(
+                                    topEnd = 10.dp,
+                                    topStart = 10.dp,
+                                    bottomEnd = 0.dp,
+                                    bottomStart = 0.dp
+                                )
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), thickness = 1.dp)
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clip(
+                                RoundedCornerShape(
+                                    topEnd = 0.dp,
+                                    topStart = 0.dp,
+                                    bottomEnd = 10.dp,
+                                    bottomStart = 10.dp
+                                )
+                            )
+                            .background(
+                                alarmCardColor, RoundedCornerShape(
+                                    topEnd = 0.dp,
+                                    topStart = 0.dp,
+                                    bottomEnd = 10.dp,
+                                    bottomStart = 10.dp
+                                )
+                            )
+                            .clickable(enabled = true) {
+
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    )
+                    {
+                        Text(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                            text = "Повторение сигнала",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = Color.White
+                            )
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .padding(horizontal = 12.dp, vertical = 12.dp)
+                                .wrapContentSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(
+                                space = 4.dp,
+                                alignment = Alignment.CenterHorizontally
+                            )
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(44.dp)
+                                    .height(28.dp)
+                                    .clip(CircleShape)
+                                    .background(trackColor)
+                                    .clickable {
+                                        alarm = alarm.copy(snoozeEnabled = !alarm.snoozeEnabled)
+                                    },
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .offset(x = thumbOffset)
+                                        .size(26.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
