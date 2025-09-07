@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
@@ -51,6 +52,7 @@ import ru.plumsoftware.alarm.ui.components.SecondaryButton
 import ru.plumsoftware.alarm.ui.theme.primaryColor
 import ru.plumsoftware.alarm.ui.theme.switchCheckedColor
 import androidx.core.net.toUri
+import ru.plumsoftware.alarm.data.alarmSounds
 import ru.plumsoftware.alarm.ui.theme.alarmCardColor
 import ru.plumsoftware.alarm.ui.theme.alarmGrayTextColor
 import java.time.LocalTime
@@ -70,6 +72,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
     )
     var showBottomSheet by remember { mutableStateOf(false) }
     var selectedAlarm by remember { mutableStateOf(Alarm(hour = 0, minute = 0)) }
+    var sheetRoutes by remember { mutableStateOf(SheetRoutes()) }
 
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp.dp
@@ -107,6 +110,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                 actions = {
                     IconButton(
                         onClick = {
+                            sheetRoutes = SheetRoutes.Main
                             showBottomSheet = true
                         },
                     ) {
@@ -188,6 +192,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
         }
         val alarmManager =
             remember { context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager }
+        var selectedSoundItem by remember { mutableStateOf(alarmSounds[16]) }
 
         val launcher = rememberLauncherForActivityResult(
             ActivityResultContracts.StartActivityForResult()
@@ -213,424 +218,453 @@ fun AlarmListScreen(navController: NavController, context: Context) {
             sheetState = modalSheetState,
             contentWindowInsets = {
                 BottomSheetDefaults.windowInsets
-                    .add(WindowInsets.navigationBars)
+//                    .add(WindowInsets.navigationBars)
                     .add(WindowInsets.statusBars)
             },
             dragHandle = null,
             properties = ModalBottomSheetProperties(shouldDismissOnBackPress = true)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(
-                    space = 24.dp,
-                    alignment = Alignment.Top
-                ),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        modifier = Modifier.clickable(true) {
-                            showBottomSheet = false
-                        },
-                        text = "Отменить",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        text = "Добавить будильник",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            color = Color.White,
-                            fontWeight = FontWeight.Medium
-                        )
-                    )
-                    Text(
-                        modifier = Modifier.clickable(true) {
-                            val canSchedule =
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                    alarmManager.canScheduleExactAlarms()
-                                } else true
-                            if (canSchedule) {
-                                coroutineScope.launch {
-                                    val savedAlarm = if (selectedAlarm.id == 0) {
-                                        repository.insert(alarm)
-                                        alarm  // Note: id is auto-generated, but for simplicity, assume we refetch or update
-                                    } else {
-                                        repository.update(alarm.copy(id = selectedAlarm.id))
-                                        alarm.copy(id = selectedAlarm.id)
-                                    }
-                                    AlarmManagerHelper.setAlarm(context, savedAlarm)
-                                    navController.popBackStack()
-                                }.invokeOnCompletion {
-                                    showBottomSheet = false
-                                }
-                            } else {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                    val intent =
-                                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                                            data = "package:${context.packageName}".toUri()
-                                        }
-                                    launcher.launch(intent)
-                                }
-                            }
-                        },
-                        text = "Сохранить",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-                WheelTimePicker(
-                    size = DpSize((screenWidthDp.value - 32).dp, 250.dp),
-                    textStyle = MaterialTheme.typography.titleSmall,
-                    startTime = if (selectedAlarm.id != 0) LocalTime.of(
-                        selectedAlarm.hour,
-                        selectedAlarm.minute
-                    ) else LocalTime.now(),
-                    textColor = Color.White,
-                    selectorProperties = WheelPickerDefaults.selectorProperties(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color.White.copy(alpha = 0.05f),
-                        border = BorderStroke(width = 0.dp, color = Color.Transparent)
-                    )
-                ) { snappedTime ->
-                    alarm = alarm.copy(hour = snappedTime.hour, minute = snappedTime.minute)
-                }
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentHeight(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
+            when (sheetRoutes) {
+                SheetRoutes.Main -> {
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .clip(
-                                RoundedCornerShape(
-                                    topEnd = 10.dp,
-                                    topStart = 10.dp,
-                                    bottomEnd = 0.dp,
-                                    bottomStart = 0.dp
-                                )
-                            )
-                            .background(
-                                alarmCardColor, RoundedCornerShape(
-                                    topEnd = 10.dp,
-                                    topStart = 10.dp,
-                                    bottomEnd = 0.dp,
-                                    bottomStart = 0.dp
-                                )
-                            )
-                            .clickable(enabled = true) {
-
-                            },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    )
-                    {
-                        Text(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                            text = "Повтор",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = Color.White
-                            )
-                        )
-
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(
+                            space = 24.dp,
+                            alignment = Alignment.Top
+                        ),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Row(
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp, vertical = 12.dp)
-                                .wrapContentSize(),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(
-                                space = 4.dp,
-                                alignment = Alignment.CenterHorizontally
-                            )
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "Никогда",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    color = alarmGrayTextColor
-                                )
-                            )
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = alarmGrayTextColor
-                            )
-                        }
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                alarmCardColor, RoundedCornerShape(
-                                    topEnd = 10.dp,
-                                    topStart = 10.dp,
-                                    bottomEnd = 0.dp,
-                                    bottomStart = 0.dp
-                                )
-                            ),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceAround
-                    ) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 12.dp),
-                            thickness = 1.dp
-                        )
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .background(
-                                alarmCardColor, RectangleShape
-                            )
-                            .clickable(enabled = true) {},
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    )
-                    {
-                        Text(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                            text = "Название",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = Color.White
-                            )
-                        )
-
-                        Row(
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp, vertical = 12.dp)
-                                .wrapContentSize(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            BasicTextField(
-                                value = alarmName,
-                                maxLines = 1,
-                                onValueChange = {
-                                    alarmName = it
-                                    alarm = alarm.copy(label = alarmName)
+                                modifier = Modifier.clickable(true) {
+                                    showBottomSheet = false
                                 },
-                                modifier = Modifier.wrapContentSize(),
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                    color = alarmGrayTextColor,
-                                    textAlign = TextAlign.End
-                                ),
-                                cursorBrush = SolidColor(primaryColor),
-                                decorationBox = { innerTextField ->
-                                    Box(
-                                        modifier = Modifier
-                                            .wrapContentSize(align = Alignment.CenterEnd)
-                                            .padding(end = 8.dp),
-                                        contentAlignment = Alignment.CenterEnd
-                                    ) {
-                                        val trailingPadding =
-                                            if (alarmName.isNotEmpty()) 20.dp else 0.dp
-                                        Box(
-                                            modifier = Modifier.padding(end = trailingPadding)
-                                        ) {
-                                            innerTextField()
-                                        }
-
-                                        if (alarmName.isEmpty()) {
-                                            Text(
-                                                text = "Будильник",
-                                                style = MaterialTheme.typography.bodyMedium.copy(
-                                                    color = alarmGrayTextColor.copy(alpha = 0.5f),
-                                                    textAlign = TextAlign.End
-                                                ),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(end = if (alarmName.isEmpty()) 0.dp else 8.dp)
-                                            )
-                                        }
-
-                                        if (alarmName.isNotEmpty()) {
-                                            IconButton(
-                                                modifier = Modifier
-                                                    .size(16.dp)
-                                                    .clip(CircleShape),
-                                                colors = IconButtonDefaults.iconButtonColors(
-                                                    containerColor = alarmGrayTextColor.copy(
-                                                        alpha = 0.5f
-                                                    ),
-                                                    contentColor = alarmCardColor
-                                                ),
-                                                onClick = { alarmName = "" }
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Rounded.Clear,
-                                                    contentDescription = null
-                                                )
+                                text = "Отменить",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Добавить будильник",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
+                            Text(
+                                modifier = Modifier.clickable(true) {
+                                    val canSchedule =
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                            alarmManager.canScheduleExactAlarms()
+                                        } else true
+                                    if (canSchedule) {
+                                        coroutineScope.launch {
+                                            val savedAlarm = if (selectedAlarm.id == 0) {
+                                                repository.insert(alarm)
+                                                alarm  // Note: id is auto-generated, but for simplicity, assume we refetch or update
+                                            } else {
+                                                repository.update(alarm.copy(id = selectedAlarm.id))
+                                                alarm.copy(id = selectedAlarm.id)
                                             }
+                                            AlarmManagerHelper.setAlarm(context, savedAlarm)
+                                            navController.popBackStack()
+                                        }.invokeOnCompletion {
+                                            showBottomSheet = false
+                                        }
+                                    } else {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                            val intent =
+                                                Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                                    data = "package:${context.packageName}".toUri()
+                                                }
+                                            launcher.launch(intent)
                                         }
                                     }
-                                }
+                                },
+                                text = "Сохранить",
+                                style = MaterialTheme.typography.bodyMedium
                             )
                         }
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                alarmCardColor, RoundedCornerShape(
-                                    topEnd = 10.dp,
-                                    topStart = 10.dp,
-                                    bottomEnd = 0.dp,
-                                    bottomStart = 0.dp
-                                )
-                            ),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceAround
-                    ) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 12.dp),
-                            thickness = 1.dp
-                        )
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .background(
-                                alarmCardColor, RectangleShape
+                        WheelTimePicker(
+                            size = DpSize((screenWidthDp.value - 32).dp, 250.dp),
+                            textStyle = MaterialTheme.typography.titleSmall,
+                            startTime = if (selectedAlarm.id != 0) LocalTime.of(
+                                selectedAlarm.hour,
+                                selectedAlarm.minute
+                            ) else LocalTime.now(),
+                            textColor = Color.White,
+                            selectorProperties = WheelPickerDefaults.selectorProperties(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color.White.copy(alpha = 0.05f),
+                                border = BorderStroke(width = 0.dp, color = Color.Transparent)
                             )
-                            .clickable(enabled = true) {
-
-                            },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    )
-                    {
-                        Text(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                            text = "Мелодия",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = Color.White
-                            )
-                        )
-
-                        Row(
+                        ) { snappedTime ->
+                            alarm = alarm.copy(hour = snappedTime.hour, minute = snappedTime.minute)
+                        }
+                        Column(
                             modifier = Modifier
-                                .padding(horizontal = 12.dp, vertical = 12.dp)
-                                .wrapContentSize(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                                .fillMaxWidth()
+                                .wrapContentHeight(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Row(
                                 modifier = Modifier
-                                    .padding(horizontal = 0.dp, vertical = 0.dp)
-                                    .wrapContentSize(),
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .clip(
+                                        RoundedCornerShape(
+                                            topEnd = 10.dp,
+                                            topStart = 10.dp,
+                                            bottomEnd = 0.dp,
+                                            bottomStart = 0.dp
+                                        )
+                                    )
+                                    .background(
+                                        alarmCardColor, RoundedCornerShape(
+                                            topEnd = 10.dp,
+                                            topStart = 10.dp,
+                                            bottomEnd = 0.dp,
+                                            bottomStart = 0.dp
+                                        )
+                                    )
+                                    .clickable(enabled = true) {
+
+                                    },
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(
-                                    space = 4.dp,
-                                    alignment = Alignment.CenterHorizontally
-                                )
-                            ) {
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            )
+                            {
                                 Text(
-                                    text = "Отражение",
+                                    modifier = Modifier.padding(
+                                        horizontal = 12.dp,
+                                        vertical = 12.dp
+                                    ),
+                                    text = "Повтор",
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        color = alarmGrayTextColor
+                                        color = Color.White
                                     )
                                 )
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = alarmGrayTextColor
-                                )
-                            }
-                        }
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                alarmCardColor, RoundedCornerShape(
-                                    topEnd = 10.dp,
-                                    topStart = 10.dp,
-                                    bottomEnd = 0.dp,
-                                    bottomStart = 0.dp
-                                )
-                            ),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceAround
-                    ) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 12.dp),
-                            thickness = 1.dp
-                        )
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .clip(
-                                RoundedCornerShape(
-                                    topEnd = 0.dp,
-                                    topStart = 0.dp,
-                                    bottomEnd = 10.dp,
-                                    bottomStart = 10.dp
-                                )
-                            )
-                            .background(
-                                alarmCardColor, RoundedCornerShape(
-                                    topEnd = 0.dp,
-                                    topStart = 0.dp,
-                                    bottomEnd = 10.dp,
-                                    bottomStart = 10.dp
-                                )
-                            )
-                            .clickable(enabled = true) {
 
-                            },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    )
-                    {
-                        Text(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                            text = "Повторение сигнала",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = Color.White
-                            )
-                        )
-
-                        Row(
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp, vertical = 12.dp)
-                                .wrapContentSize(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(
-                                space = 4.dp,
-                                alignment = Alignment.CenterHorizontally
-                            )
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(44.dp)
-                                    .height(28.dp)
-                                    .clip(CircleShape)
-                                    .background(trackColor)
-                                    .clickable {
-                                        alarm = alarm.copy(snoozeEnabled = !alarm.snoozeEnabled)
-                                    },
-                                contentAlignment = Alignment.CenterStart
-                            ) {
-                                Box(
+                                Row(
                                     modifier = Modifier
-                                        .offset(x = thumbOffset)
-                                        .size(26.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.White)
+                                        .padding(horizontal = 12.dp, vertical = 12.dp)
+                                        .wrapContentSize(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(
+                                        space = 4.dp,
+                                        alignment = Alignment.CenterHorizontally
+                                    )
+                                ) {
+                                    Text(
+                                        text = "Никогда",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            color = alarmGrayTextColor
+                                        )
+                                    )
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = alarmGrayTextColor
+                                    )
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        alarmCardColor, RoundedCornerShape(
+                                            topEnd = 10.dp,
+                                            topStart = 10.dp,
+                                            bottomEnd = 0.dp,
+                                            bottomStart = 0.dp
+                                        )
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceAround
+                            ) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    thickness = 1.dp
                                 )
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .background(
+                                        alarmCardColor, RectangleShape
+                                    )
+                                    .clickable(enabled = true) {},
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            )
+                            {
+                                Text(
+                                    modifier = Modifier.padding(
+                                        horizontal = 12.dp,
+                                        vertical = 12.dp
+                                    ),
+                                    text = "Название",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        color = Color.White
+                                    )
+                                )
+
+                                Row(
+                                    modifier = Modifier
+                                        .padding(horizontal = 12.dp, vertical = 12.dp)
+                                        .wrapContentSize(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    BasicTextField(
+                                        value = alarmName,
+                                        maxLines = 1,
+                                        onValueChange = {
+                                            alarmName = it
+                                            alarm = alarm.copy(label = alarmName)
+                                        },
+                                        modifier = Modifier.wrapContentSize(),
+                                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                            color = alarmGrayTextColor,
+                                            textAlign = TextAlign.End
+                                        ),
+                                        cursorBrush = SolidColor(primaryColor),
+                                        decorationBox = { innerTextField ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .wrapContentSize(align = Alignment.CenterEnd)
+                                                    .padding(end = 8.dp),
+                                                contentAlignment = Alignment.CenterEnd
+                                            ) {
+                                                val trailingPadding =
+                                                    if (alarmName.isNotEmpty()) 20.dp else 0.dp
+                                                Box(
+                                                    modifier = Modifier.padding(end = trailingPadding)
+                                                ) {
+                                                    innerTextField()
+                                                }
+
+                                                if (alarmName.isEmpty()) {
+                                                    Text(
+                                                        text = "Будильник",
+                                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                                            color = alarmGrayTextColor.copy(alpha = 0.5f),
+                                                            textAlign = TextAlign.End
+                                                        ),
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(end = if (alarmName.isEmpty()) 0.dp else 8.dp)
+                                                    )
+                                                }
+
+                                                if (alarmName.isNotEmpty()) {
+                                                    IconButton(
+                                                        modifier = Modifier
+                                                            .size(16.dp)
+                                                            .clip(CircleShape),
+                                                        colors = IconButtonDefaults.iconButtonColors(
+                                                            containerColor = alarmGrayTextColor.copy(
+                                                                alpha = 0.5f
+                                                            ),
+                                                            contentColor = alarmCardColor
+                                                        ),
+                                                        onClick = { alarmName = "" }
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.Clear,
+                                                            contentDescription = null
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        alarmCardColor, RoundedCornerShape(
+                                            topEnd = 10.dp,
+                                            topStart = 10.dp,
+                                            bottomEnd = 0.dp,
+                                            bottomStart = 0.dp
+                                        )
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceAround
+                            ) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    thickness = 1.dp
+                                )
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .background(
+                                        alarmCardColor, RectangleShape
+                                    )
+                                    .clickable(enabled = true) {
+                                        sheetRoutes = SheetRoutes.Sounds
+                                    },
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            )
+                            {
+                                Text(
+                                    modifier = Modifier.padding(
+                                        horizontal = 12.dp,
+                                        vertical = 12.dp
+                                    ),
+                                    text = "Мелодия",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        color = Color.White
+                                    )
+                                )
+
+                                Row(
+                                    modifier = Modifier
+                                        .padding(horizontal = 12.dp, vertical = 12.dp)
+                                        .wrapContentSize(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .padding(horizontal = 0.dp, vertical = 0.dp)
+                                            .wrapContentSize(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(
+                                            space = 4.dp,
+                                            alignment = Alignment.CenterHorizontally
+                                        )
+                                    ) {
+                                        Text(
+                                            text = selectedSoundItem.first,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                color = alarmGrayTextColor
+                                            )
+                                        )
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                            contentDescription = null,
+                                            tint = alarmGrayTextColor
+                                        )
+                                    }
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        alarmCardColor, RoundedCornerShape(
+                                            topEnd = 10.dp,
+                                            topStart = 10.dp,
+                                            bottomEnd = 0.dp,
+                                            bottomStart = 0.dp
+                                        )
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceAround
+                            ) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    thickness = 1.dp
+                                )
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .clip(
+                                        RoundedCornerShape(
+                                            topEnd = 0.dp,
+                                            topStart = 0.dp,
+                                            bottomEnd = 10.dp,
+                                            bottomStart = 10.dp
+                                        )
+                                    )
+                                    .background(
+                                        alarmCardColor, RoundedCornerShape(
+                                            topEnd = 0.dp,
+                                            topStart = 0.dp,
+                                            bottomEnd = 10.dp,
+                                            bottomStart = 10.dp
+                                        )
+                                    )
+                                    .clickable(enabled = true) {
+
+                                    },
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            )
+                            {
+                                Text(
+                                    modifier = Modifier.padding(
+                                        horizontal = 12.dp,
+                                        vertical = 12.dp
+                                    ),
+                                    text = "Повторение сигнала",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        color = Color.White
+                                    )
+                                )
+
+                                Row(
+                                    modifier = Modifier
+                                        .padding(horizontal = 12.dp, vertical = 12.dp)
+                                        .wrapContentSize(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(
+                                        space = 4.dp,
+                                        alignment = Alignment.CenterHorizontally
+                                    )
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(44.dp)
+                                            .height(28.dp)
+                                            .clip(CircleShape)
+                                            .background(trackColor)
+                                            .clickable {
+                                                alarm =
+                                                    alarm.copy(snoozeEnabled = !alarm.snoozeEnabled)
+                                            },
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .offset(x = thumbOffset)
+                                                .size(26.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.White)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
+                }
+
+                SheetRoutes.Sounds -> {
+                    AlarmSoundSheet(
+                        item = selectedSoundItem,
+                        onSelected = {
+                            selectedSoundItem = it
+                        },
+                        onBack = {
+                            sheetRoutes = SheetRoutes.Main
+                        }
+                    )
                 }
             }
         }
@@ -739,4 +773,9 @@ fun dayToString(day: Int): String {
         6 -> "Сб"
         else -> ""
     }
+}
+
+open class SheetRoutes {
+    data object Main : SheetRoutes()
+    data object Sounds : SheetRoutes()
 }
