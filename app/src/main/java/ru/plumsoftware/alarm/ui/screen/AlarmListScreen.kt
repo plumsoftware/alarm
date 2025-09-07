@@ -169,14 +169,17 @@ fun AlarmListScreen(navController: NavController, context: Context) {
     }
 
     if (showBottomSheet) {
-        var alarmName by remember { mutableStateOf(
-            if (selectedAlarm.id == -1) "" else selectedAlarm.label) }
+        var alarmName by remember {
+            mutableStateOf(
+                if (selectedAlarm.id == 0) "" else selectedAlarm.label
+            )
+        }
         val repository = remember { AlarmRepository(context) }
         val coroutineScope = rememberCoroutineScope()
         val now = Calendar.getInstance()
         var alarm by remember {
             mutableStateOf(
-                if (selectedAlarm.id == -1)
+                if (selectedAlarm.id == 0)
                     Alarm(
                         hour = now.get(java.util.Calendar.HOUR_OF_DAY),
                         minute = now.get(java.util.Calendar.MINUTE)
@@ -253,7 +256,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                 } else true
                             if (canSchedule) {
                                 coroutineScope.launch {
-                                    val savedAlarm = if (selectedAlarm.id == -1) {
+                                    val savedAlarm = if (selectedAlarm.id == 0) {
                                         repository.insert(alarm)
                                         alarm  // Note: id is auto-generated, but for simplicity, assume we refetch or update
                                     } else {
@@ -282,7 +285,10 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                 WheelTimePicker(
                     size = DpSize((screenWidthDp.value - 32).dp, 250.dp),
                     textStyle = MaterialTheme.typography.titleSmall,
-                    startTime = if (selectedAlarm.id != -1) LocalTime.of(selectedAlarm.hour, selectedAlarm.minute) else LocalTime.now(),
+                    startTime = if (selectedAlarm.id != 0) LocalTime.of(
+                        selectedAlarm.hour,
+                        selectedAlarm.minute
+                    ) else LocalTime.now(),
                     textColor = Color.White,
                     selectorProperties = WheelPickerDefaults.selectorProperties(
                         shape = RoundedCornerShape(12.dp),
@@ -406,7 +412,10 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                             BasicTextField(
                                 value = alarmName,
                                 maxLines = 1,
-                                onValueChange = { alarmName = it },
+                                onValueChange = {
+                                    alarmName = it
+                                    alarm = alarm.copy(label = alarmName)
+                                },
                                 modifier = Modifier.wrapContentSize(),
                                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                                     color = alarmGrayTextColor,
@@ -686,11 +695,6 @@ fun AlarmItem(
                         color = textColor
                     )
                 )
-                if (alarm.label.isNotEmpty())
-                    Text(
-                        text = alarm.label,
-                        color = Color.Gray
-                    )
                 if (alarm.repeatDays.isNotEmpty())
                     Text(
                         text = alarm.repeatDays.joinToString { dayToString(it) },
