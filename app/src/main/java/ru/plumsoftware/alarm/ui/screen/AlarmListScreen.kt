@@ -55,6 +55,7 @@ import androidx.core.net.toUri
 import ru.plumsoftware.alarm.data.alarmSounds
 import ru.plumsoftware.alarm.ui.theme.alarmCardColor
 import ru.plumsoftware.alarm.ui.theme.alarmGrayTextColor
+import ru.plumsoftware.alarm.ui.theme.alarmRedColor
 import java.time.LocalTime
 
 @SuppressLint("ConfigurationScreenWidthHeight")
@@ -158,6 +159,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                 }
                             }
                         }, onEdit = {
+                            sheetRoutes = SheetRoutes.Main
                             selectedAlarm = alarm
                             showBottomSheet = true
                         }, onDelete = {
@@ -647,6 +649,41 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                                 .size(26.dp)
                                                 .clip(CircleShape)
                                                 .background(Color.White)
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (alarm.id != 0) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .wrapContentHeight(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = alarmCardColor,
+                                        contentColor = alarmRedColor
+                                    ),
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            repository.delete(alarm)
+                                            AlarmManagerHelper.cancelAlarm(context, alarm)
+
+                                            showBottomSheet = false
+                                        }
+                                    }
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .wrapContentHeight()
+                                    ) {
+                                        Text(
+                                            modifier = Modifier
+                                                .padding(horizontal = 8.dp, vertical = 12.dp)
+                                                .align(Alignment.Center),
+                                            text = "Удалить будильник",
+                                            style = MaterialTheme.typography.bodyMedium.copy(color = alarmRedColor)
                                         )
                                     }
                                 }
