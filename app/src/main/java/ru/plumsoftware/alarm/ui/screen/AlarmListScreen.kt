@@ -335,7 +335,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                         )
                                     )
                                     .clickable(enabled = true) {
-
+                                        sheetRoutes = SheetRoutes.Repeat
                                     },
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -703,6 +703,10 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                         }
                     )
                 }
+
+                SheetRoutes.Repeat -> {
+
+                }
             }
         }
     }
@@ -815,4 +819,5 @@ fun dayToString(day: Int): String {
 open class SheetRoutes {
     data object Main : SheetRoutes()
     data object Sounds : SheetRoutes()
+    data object Repeat : SheetRoutes()
 }
