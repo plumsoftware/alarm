@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -57,7 +58,7 @@ fun AlarmRepeatSheet(
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(
-            space = 24.dp,
+            space = 0.dp,
             alignment = Alignment.Top
         ),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -103,6 +104,8 @@ fun AlarmRepeatSheet(
                 )
             )
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         Row(
             modifier = Modifier
@@ -472,6 +475,25 @@ fun AlarmRepeatSheet(
             ) {
 
             }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    alarmCardColor, RoundedCornerShape(
+                        topEnd = 10.dp,
+                        topStart = 10.dp,
+                        bottomEnd = 0.dp,
+                        bottomStart = 0.dp
+                    )
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                thickness = 1.dp
+            )
         }
 
 

@@ -192,6 +192,9 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                     ) else selectedAlarm
             )
         }
+        var repeat by remember {
+            mutableStateOf(Pair("Никогда", 0))
+        }
         val alarmManager =
             remember { context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager }
         var selectedSoundItem by remember { mutableStateOf(alarmSounds[16]) }
@@ -297,7 +300,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                             startTime = if (selectedAlarm.id != 0) LocalTime.of(
                                 selectedAlarm.hour,
                                 selectedAlarm.minute
-                            ) else LocalTime.now(),
+                            ) else LocalTime.of(alarm.hour, alarm.minute),
                             textColor = Color.White,
                             selectorProperties = WheelPickerDefaults.selectorProperties(
                                 shape = RoundedCornerShape(12.dp),
@@ -705,7 +708,15 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                 }
 
                 SheetRoutes.Repeat -> {
-
+                    AlarmRepeatSheet(
+                        item = repeat,
+                        onSelected = {
+                            repeat = it
+                        },
+                        onBack = {
+                            sheetRoutes = SheetRoutes.Main
+                        }
+                    )
                 }
             }
         }
