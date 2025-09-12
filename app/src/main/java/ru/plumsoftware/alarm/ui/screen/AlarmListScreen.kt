@@ -366,7 +366,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                     )
                                 ) {
                                     Text(
-                                        text = "Никогда",
+                                        text = repeat.first,
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             color = alarmGrayTextColor
                                         )

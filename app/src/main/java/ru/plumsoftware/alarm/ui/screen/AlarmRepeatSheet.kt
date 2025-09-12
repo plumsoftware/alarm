@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -31,6 +32,10 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,7 +57,7 @@ fun AlarmRepeatSheet(
     onBack: () -> Unit,
     context: Context = LocalContext.current
 ) {
-
+    var selectedItem by remember { mutableStateOf(item) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -128,7 +133,8 @@ fun AlarmRepeatSheet(
                     )
                 )
                 .clickable(enabled = true) {
-
+                    selectedItem = Pair("Никогда", 0)
+                    onSelected(selectedItem)
                 },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -154,7 +160,13 @@ fun AlarmRepeatSheet(
                     alignment = Alignment.CenterHorizontally
                 )
             ) {
-
+                if (selectedItem.second == 0) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = primaryColor
+                    )
+                }
             }
         }
 
@@ -184,7 +196,10 @@ fun AlarmRepeatSheet(
                 .background(
                     alarmCardColor, RectangleShape
                 )
-                .clickable(enabled = true) {},
+                .clickable(enabled = true) {
+                    selectedItem = Pair("Каждый понедельник", 1)
+                    onSelected(selectedItem)
+                },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         )
@@ -207,7 +222,13 @@ fun AlarmRepeatSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-
+                if (selectedItem.second == 1) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = primaryColor
+                    )
+                }
             }
         }
 
@@ -237,7 +258,10 @@ fun AlarmRepeatSheet(
                 .background(
                     alarmCardColor, RectangleShape
                 )
-                .clickable(enabled = true) {},
+                .clickable(enabled = true) {
+                    selectedItem = Pair("Каждый вторник", 2)
+                    onSelected(selectedItem)
+                },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         )
@@ -260,7 +284,13 @@ fun AlarmRepeatSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-
+                if (selectedItem.second == 2) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = primaryColor
+                    )
+                }
             }
         }
 
@@ -291,7 +321,10 @@ fun AlarmRepeatSheet(
                 .background(
                     alarmCardColor, RectangleShape
                 )
-                .clickable(enabled = true) {},
+                .clickable(enabled = true) {
+                    selectedItem = Pair("Каждую среду", 3)
+                    onSelected(selectedItem)
+                },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         )
@@ -314,7 +347,13 @@ fun AlarmRepeatSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-
+                if (selectedItem.second == 3) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = primaryColor
+                    )
+                }
             }
         }
 
@@ -344,7 +383,10 @@ fun AlarmRepeatSheet(
                 .background(
                     alarmCardColor, RectangleShape
                 )
-                .clickable(enabled = true) {},
+                .clickable(enabled = true) {
+                    selectedItem = Pair("Каждый четверг", 4)
+                    onSelected(selectedItem)
+                },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         )
@@ -367,7 +409,13 @@ fun AlarmRepeatSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-
+                if (selectedItem.second == 4) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = primaryColor
+                    )
+                }
             }
         }
 
@@ -397,7 +445,10 @@ fun AlarmRepeatSheet(
                 .background(
                     alarmCardColor, RectangleShape
                 )
-                .clickable(enabled = true) {},
+                .clickable(enabled = true) {
+                    selectedItem = Pair("Каждую пятницу", 5)
+                    onSelected(selectedItem)
+                },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         )
@@ -420,7 +471,13 @@ fun AlarmRepeatSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-
+                if (selectedItem.second == 5) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = primaryColor
+                    )
+                }
             }
         }
 
@@ -450,7 +507,10 @@ fun AlarmRepeatSheet(
                 .background(
                     alarmCardColor, RectangleShape
                 )
-                .clickable(enabled = true) {},
+                .clickable(enabled = true) {
+                    selectedItem = Pair("Каждую субботу", 6)
+                    onSelected(selectedItem)
+                },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         )
@@ -473,7 +533,13 @@ fun AlarmRepeatSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-
+                if (selectedItem.second == 6) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = primaryColor
+                    )
+                }
             }
         }
         Row(
@@ -518,7 +584,8 @@ fun AlarmRepeatSheet(
                     )
                 )
                 .clickable(enabled = true) {
-
+                    selectedItem = Pair("Каждое воскресенье", 7)
+                    onSelected(selectedItem)
                 },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -544,7 +611,13 @@ fun AlarmRepeatSheet(
                     alignment = Alignment.CenterHorizontally
                 )
             ) {
-
+                if (selectedItem.second == 7) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = primaryColor
+                    )
+                }
             }
         }
     }
