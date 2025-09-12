@@ -57,6 +57,7 @@ import ru.plumsoftware.alarm.ui.theme.alarmCardColor
 import ru.plumsoftware.alarm.ui.theme.alarmGrayTextColor
 import ru.plumsoftware.alarm.ui.theme.alarmRedColor
 import java.time.LocalTime
+import kotlin.collections.sortedDescending
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -192,9 +193,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                     ) else selectedAlarm
             )
         }
-        var repeat by remember {
-            mutableStateOf(Pair("Никогда", 0))
-        }
+        var repeat by remember { mutableStateOf<RepeatAlarm>(RepeatAlarm.Never()) }
         val alarmManager =
             remember { context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager }
         var selectedSoundItem by remember { mutableStateOf(alarmSounds[16]) }
@@ -365,8 +364,16 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                         alignment = Alignment.CenterHorizontally
                                     )
                                 ) {
+                                    val title = when (repeat) {
+                                        is RepeatAlarm.Days -> {
+                                            (repeat as RepeatAlarm.Days).list.map {it.id}.sortedDescending().joinToString { dayToString(it) }
+                                        }
+                                        is RepeatAlarm.Never -> {
+                                            (repeat as RepeatAlarm.Never).title
+                                        }
+                                    }
                                     Text(
-                                        text = repeat.first,
+                                        text = title,
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             color = alarmGrayTextColor
                                         )
@@ -700,6 +707,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                         item = selectedSoundItem,
                         onSelected = {
                             selectedSoundItem = it
+                            alarm = alarm.copy(sound = it.second)
                         },
                         onBack = {
                             sheetRoutes = SheetRoutes.Main
@@ -712,6 +720,16 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                         item = repeat,
                         onSelected = {
                             repeat = it
+
+                            alarm = when (repeat) {
+                                is RepeatAlarm.Days -> {
+                                    alarm.copy(repeatDays = (repeat as RepeatAlarm.Days).list.map { it.id })
+                                }
+
+                                is RepeatAlarm.Never -> {
+                                    alarm.copy(repeatDays = listOf())
+                                }
+                            }
                         },
                         onBack = {
                             sheetRoutes = SheetRoutes.Main
@@ -816,13 +834,13 @@ fun AlarmItem(
 
 fun dayToString(day: Int): String {
     return when (day) {
-        0 -> "Вс"
         1 -> "Пн"
         2 -> "Вт"
         3 -> "Ср"
         4 -> "Чт"
         5 -> "Пт"
         6 -> "Сб"
+        7 -> "Вс"
         else -> ""
     }
 }

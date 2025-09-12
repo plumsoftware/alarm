@@ -12,7 +12,7 @@ data class Alarm(
     val isEnabled: Boolean = true,
     val repeatDays: List<Int> = emptyList(),  // 0=Sun, 1=Mon, ..., 6=Sat
     val label: String = "",
-    val sound: String = "default",  // Placeholder for sound URI or name
+    val sound: Int = 0,  // Placeholder for sound URI or name
     val snoozeEnabled: Boolean = false
 ) {
     fun getNextAlarmTime(): Long {
