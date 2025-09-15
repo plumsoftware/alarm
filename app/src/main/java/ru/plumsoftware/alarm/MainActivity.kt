@@ -3,12 +3,9 @@ package ru.plumsoftware.alarm
 import android.app.AlertDialog
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.media.RingtoneManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -25,7 +22,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import ru.plumsoftware.alarm.ui.screen.AlarmListScreen
-import ru.plumsoftware.alarm.ui.screen.EditAlarmScreen
 import ru.plumsoftware.alarm.ui.theme.AlarmTheme
 import androidx.core.net.toUri
 
@@ -102,13 +98,6 @@ class MainActivity : ComponentActivity() {
                     NavHost(navController = navController, startDestination = "alarm_list") {
                         composable("alarm_list") {
                             AlarmListScreen(navController = navController, context = this@MainActivity)
-                        }
-                        composable("edit_alarm/{alarmId}") { backStackEntry ->
-                            val alarmId = backStackEntry.arguments?.getString("alarmId")?.toInt() ?: -1
-                            EditAlarmScreen(navController = navController, alarmId = alarmId, context = this@MainActivity)
-                        }
-                        composable("new_alarm") {
-                            EditAlarmScreen(navController = navController, alarmId = -1, context = this@MainActivity)
                         }
                     }
                 }

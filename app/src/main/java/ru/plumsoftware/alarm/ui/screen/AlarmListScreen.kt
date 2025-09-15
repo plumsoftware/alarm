@@ -89,6 +89,10 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                 modalSheetState.expand()
             } else {
                 modalSheetState.hide()
+                selectedAlarm = Alarm(
+                    hour = 0,
+                    minute = 0
+                )
             }
         }
     }
@@ -105,7 +109,9 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                 navigationIcon = {
                     SecondaryButton(
                         text = "Редакировать",
-                        onClick = {}
+                        onClick = {
+
+                        }
                     )
                 },
                 title = {},
@@ -189,14 +195,18 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                 if (selectedAlarm.id == 0)
                     Alarm(
                         hour = now.get(java.util.Calendar.HOUR_OF_DAY),
-                        minute = now.get(java.util.Calendar.MINUTE)
+                        minute = now.get(java.util.Calendar.MINUTE),
+                        repeatDays = listOf(0)
                     ) else selectedAlarm
             )
         }
-        var repeat by remember { mutableStateOf<RepeatAlarm>(RepeatAlarm.Never()) }
+        var repeat by remember { mutableStateOf<RepeatAlarm>(RepeatAlarm.fromStringTo(alarm.repeatDays.sortedDescending().joinToString { dayToString(it) })) }
         val alarmManager =
             remember { context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager }
-        var selectedSoundItem by remember { mutableStateOf(alarmSounds[16]) }
+        var selectedSoundItem by remember {
+            mutableStateOf(alarmSounds.firstOrNull { it.second == selectedAlarm.sound }
+                ?: alarmSounds[16])
+        }
 
         val launcher = rememberLauncherForActivityResult(
             ActivityResultContracts.StartActivityForResult()
@@ -247,6 +257,10 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                         ) {
                             Text(
                                 modifier = Modifier.clickable(true) {
+                                    selectedAlarm = Alarm(
+                                        hour = 0,
+                                        minute = 0
+                                    )
                                     showBottomSheet = false
                                 },
                                 text = "Отменить",
@@ -366,8 +380,10 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                 ) {
                                     val title = when (repeat) {
                                         is RepeatAlarm.Days -> {
-                                            (repeat as RepeatAlarm.Days).list.map {it.id}.sortedDescending().joinToString { dayToString(it) }
+                                            (repeat as RepeatAlarm.Days).list.map { it.id }
+                                                .sortedDescending().joinToString { dayToString(it) }
                                         }
+
                                         is RepeatAlarm.Never -> {
                                             (repeat as RepeatAlarm.Never).title
                                         }
@@ -834,6 +850,7 @@ fun AlarmItem(
 
 fun dayToString(day: Int): String {
     return when (day) {
+        0 -> "Никогда"
         1 -> "Пн"
         2 -> "Вт"
         3 -> "Ср"
