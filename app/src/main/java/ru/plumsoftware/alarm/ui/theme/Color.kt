@@ -8,3 +8,4 @@ val alarmCardColor = Color(0xFF2C2C2D)
 val alarmGrayTextColor = Color(0xFF79787A)
 
 val alarmRedColor = Color(0xFFDF2B20)
+val alarmScreen = Color(0xFF1E1E1F)

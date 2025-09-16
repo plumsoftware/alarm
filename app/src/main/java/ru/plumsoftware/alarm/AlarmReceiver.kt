@@ -166,7 +166,7 @@ class AlarmReceiver : BroadcastReceiver() {
         )
 
         val notificationBuilder = NotificationCompat.Builder(context, "alarm_channel")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.icon)
             .setContentTitle("⏰ Будильник")
             .setContentText("Нажмите для отключения")
             .setStyle(NotificationCompat.BigTextStyle().bigText("Нажмите для отключения"))

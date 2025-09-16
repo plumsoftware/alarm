@@ -18,7 +18,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -52,6 +55,7 @@ import ru.plumsoftware.alarm.data.AlarmManagerHelper
 import ru.plumsoftware.alarm.data.AppDatabase
 import ru.plumsoftware.alarm.ui.theme.AlarmTheme
 import ru.plumsoftware.alarm.ui.theme.alarmCardColor
+import ru.plumsoftware.alarm.ui.theme.alarmScreen
 import ru.plumsoftware.alarm.ui.theme.primaryColor
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -81,12 +85,24 @@ class AlarmActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
+            val coroutine = rememberCoroutineScope()
+            var name by remember { mutableStateOf("Будильник") }
+            LaunchedEffect(Unit) {
+                coroutine.launch {
+                    val db = AppDatabase.getDatabase(this@AlarmActivity)
+                    val alarm = db.alarmDao().getAlarmById(alarmId) ?: return@launch
+                    withContext(Dispatchers.Main) {
+                        name = alarm.label
+                    }
+                }
+            }
             AlarmTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = Color.Black
                 ) {
                     AlarmContent(
+                        name = name,
                         onSnoozeClicked = {
                             snoozeAlarm(alarmId)
                             finish()
@@ -126,6 +142,10 @@ class AlarmActivity : ComponentActivity() {
         if (!isSnoozing && (alarm.repeatDays.contains(0) || alarm.repeatDays.isEmpty())) {
             AlarmManagerHelper.cancelAlarm(this, alarm)
             Log.d("AlarmActivity", "🔕 Manual cancel of alarm $alarmId")
+        }
+
+        if (alarm.repeatDays.isEmpty() || alarm.repeatDays == listOf(0)) {
+            db.alarmDao().update(alarm.copy(isEnabled = false))
         }
 
         // 4. Сбрасываем флаг
@@ -255,6 +275,7 @@ class AlarmActivity : ComponentActivity() {
 
     @Composable
     private fun AlarmContent(
+        name: String,
         onSnoozeClicked: () -> Unit,
         onCanselClicked: () -> Unit
     ) {
@@ -270,7 +291,7 @@ class AlarmActivity : ComponentActivity() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.7f))
+                .background(alarmScreen)
                 .clickable(true) { /* блокируем клики снаружи */ }
         ) {
             Column(
@@ -289,6 +310,17 @@ class AlarmActivity : ComponentActivity() {
                     ),
                     modifier = Modifier.padding(bottom = 48.dp)
                 )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
 
                 Button(
                     onClick = onSnoozeClicked,
@@ -312,7 +344,7 @@ class AlarmActivity : ComponentActivity() {
             Box(
                 modifier = Modifier
                     .wrapContentSize()
-                    .padding(all = 18.dp)
+                    .padding(all = 24.dp)
                     .align(Alignment.BottomCenter)
             ) {
                 Button(
@@ -323,7 +355,7 @@ class AlarmActivity : ComponentActivity() {
                     ),
                     shape = RoundedCornerShape(18.dp),
                     modifier = Modifier
-                        .padding(16.dp)
+                        .padding(38.dp)
                         .wrapContentSize()
                         .align(Alignment.BottomCenter)
                 ) {

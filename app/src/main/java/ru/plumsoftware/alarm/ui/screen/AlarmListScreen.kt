@@ -282,11 +282,11 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                     if (canSchedule) {
                                         coroutineScope.launch {
                                             val savedAlarm = if (selectedAlarm.id == 0) {
-                                                repository.insert(alarm)
+                                                repository.insert(alarm.copy(isEnabled = true))
                                                 alarm  // Note: id is auto-generated, but for simplicity, assume we refetch or update
                                             } else {
-                                                repository.update(alarm.copy(id = selectedAlarm.id))
-                                                alarm.copy(id = selectedAlarm.id)
+                                                repository.update(alarm.copy(id = selectedAlarm.id, isEnabled = true))
+                                                alarm.copy(id = selectedAlarm.id, isEnabled = true)
                                             }
                                             AlarmManagerHelper.setAlarm(context, savedAlarm)
                                             navController.popBackStack()
