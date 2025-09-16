@@ -5,12 +5,9 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import androidx.work.Data
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
+import android.util.Log
 import ru.plumsoftware.alarm.AlarmReceiver
-import java.util.concurrent.TimeUnit
+import java.util.Date
 
 //object AlarmManagerHelper {
 //
@@ -47,16 +44,18 @@ import java.util.concurrent.TimeUnit
 object AlarmManagerHelper {
     fun setAlarm(context: Context, alarm: Alarm) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!alarmManager.canScheduleExactAlarms()) {
-                // Permission not granted, cannot set exact alarm
-                // Handle in UI, but for now, return or log
+                Log.e("AlarmManagerHelper", "❌ Cannot schedule exact alarm — permission not granted!")
                 return
             }
         }
+
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             putExtra("alarm_id", alarm.id)
         }
+
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             alarm.id,
@@ -65,7 +64,11 @@ object AlarmManagerHelper {
         )
 
         val triggerTime = alarm.getNextAlarmTime()
+        val triggerDate = Date(triggerTime)
+
         alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+
+        Log.d("AlarmManagerHelper", "⏰ Alarm set for ID: ${alarm.id} at $triggerDate")
     }
 
     fun cancelAlarm(context: Context, alarm: Alarm) {
@@ -78,5 +81,7 @@ object AlarmManagerHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         alarmManager.cancel(pendingIntent)
+
+        Log.d("AlarmManagerHelper", "🔕 Alarm CANCELLED for ID: ${alarm.id}")
     }
 }

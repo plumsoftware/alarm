@@ -2,4 +2,14 @@
 <resources>
 
     <style name="Theme.Будильник" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="TransparentAlarmActivity" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:backgroundDimEnabled">true</item> <!-- затемнение фона -->
+        <item name="android:windowAnimationStyle">@null</item> <!-- без анимаций -->
+    </style>
 </resources>

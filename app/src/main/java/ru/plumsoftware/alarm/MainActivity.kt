@@ -78,7 +78,6 @@ class MainActivity : ComponentActivity() {
             ) {
                 // Запрашиваем разрешение
                 notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                return // Не показываем контент, пока разрешение не получено
             } else {
                 createAlarmNotificationChannel() // Уже есть разрешение — создаём канал
             }
