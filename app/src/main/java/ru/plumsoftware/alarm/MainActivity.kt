@@ -12,18 +12,30 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Modifier
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.Nullable
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.yandex.mobile.ads.appopenad.AppOpenAd
+import com.yandex.mobile.ads.appopenad.AppOpenAdEventListener
+import com.yandex.mobile.ads.appopenad.AppOpenAdLoadListener
+import com.yandex.mobile.ads.appopenad.AppOpenAdLoader
+import com.yandex.mobile.ads.common.AdError
+import com.yandex.mobile.ads.common.AdRequestConfiguration
+import com.yandex.mobile.ads.common.AdRequestError
+import com.yandex.mobile.ads.common.ImpressionData
+import com.yandex.mobile.ads.common.MobileAds.initialize
+import ru.plumsoftware.alarm.data.AdsConfig
 import ru.plumsoftware.alarm.ui.screen.AlarmListScreen
 import ru.plumsoftware.alarm.ui.theme.AlarmTheme
-import androidx.core.net.toUri
+
 
 class MainActivity : ComponentActivity() {
 
@@ -72,6 +84,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        initialize(this) {
+            showOpenAds()
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED
@@ -102,5 +117,40 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun showOpenAds() {
+        var mAppOpenAd: AppOpenAd?
+        val appOpenAdLoader = AppOpenAdLoader(this)
+        val AD_UNIT_ID: String = AdsConfig.OPEN_MAIN_SCREEN_AD
+        val adRequestConfiguration = AdRequestConfiguration.Builder(AD_UNIT_ID).build()
+
+        val appOpenAdEventListener: AppOpenAdEventListener = object : AppOpenAdEventListener {
+            override fun onAdShown() {}
+
+            override fun onAdDismissed() {}
+
+            override fun onAdFailedToShow(adError: AdError) {}
+
+            override fun onAdClicked() {}
+
+            override fun onAdImpression(@Nullable impressionData: ImpressionData?) {}
+        }
+
+        val appOpenAdLoadListener: AppOpenAdLoadListener = object : AppOpenAdLoadListener {
+
+            override fun onAdFailedToLoad(error: AdRequestError) {
+
+            }
+
+            override fun onAdLoaded(appOpenAd: AppOpenAd) {
+                mAppOpenAd = appOpenAd
+                mAppOpenAd.setAdEventListener(appOpenAdEventListener)
+                mAppOpenAd.show(this@MainActivity)
+            }
+        }
+
+        appOpenAdLoader.setAdLoadListener(appOpenAdLoadListener)
+        appOpenAdLoader.loadAd(adRequestConfiguration)
     }
 }

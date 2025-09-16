@@ -74,4 +74,5 @@ dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("com.github.commandiron:WheelPickerCompose:1.1.11")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("com.yandex.android:mobileads:7.15.1")
 }
