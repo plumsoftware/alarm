@@ -22,7 +22,9 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -39,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
@@ -52,6 +55,8 @@ import ru.plumsoftware.alarm.ui.components.SecondaryButton
 import ru.plumsoftware.alarm.ui.theme.primaryColor
 import ru.plumsoftware.alarm.ui.theme.switchCheckedColor
 import androidx.core.net.toUri
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import ru.plumsoftware.alarm.data.alarmSounds
 import ru.plumsoftware.alarm.ui.theme.alarmCardColor
 import ru.plumsoftware.alarm.ui.theme.alarmGrayTextColor
@@ -75,6 +80,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
     var showBottomSheet by remember { mutableStateOf(false) }
     var selectedAlarm by remember { mutableStateOf(Alarm(hour = 0, minute = 0)) }
     var sheetRoutes by remember { mutableStateOf(SheetRoutes()) }
+    var listMode by remember { mutableStateOf(ListMode.MAIN) }
 
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp.dp
@@ -108,9 +114,12 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                 ),
                 navigationIcon = {
                     SecondaryButton(
-                        text = "Редакировать",
+                        text = if (listMode == ListMode.MAIN) "Редакировать" else "Готово",
                         onClick = {
-
+                            when (listMode) {
+                                ListMode.MAIN -> listMode = ListMode.DELETING
+                                ListMode.DELETING -> listMode = ListMode.MAIN
+                            }
                         }
                     )
                 },
@@ -155,26 +164,37 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                     modifier = Modifier.padding(top = 24.dp)
                 ) {
                     items(alarms) { alarm ->
-                        AlarmItem(alarm = alarm, onToggle = { enabled ->
-                            val updated = alarm.copy(isEnabled = enabled)
-                            coroutineScope.launch {
-                                repository.update(updated)
-                                if (enabled) {
-                                    AlarmManagerHelper.setAlarm(context, updated)
-                                } else {
-                                    AlarmManagerHelper.cancelAlarm(context, updated)
+                        AlarmItem(
+                            listMode = listMode,
+                            alarm = alarm,
+                            onToggle = { enabled ->
+                                val updated = alarm.copy(isEnabled = enabled)
+                                coroutineScope.launch {
+                                    repository.update(updated)
+                                    if (enabled) {
+                                        AlarmManagerHelper.setAlarm(context, updated)
+                                    } else {
+                                        AlarmManagerHelper.cancelAlarm(context, updated)
+                                    }
                                 }
-                            }
-                        }, onEdit = {
-                            sheetRoutes = SheetRoutes.Main
-                            selectedAlarm = alarm
-                            showBottomSheet = true
-                        }, onDelete = {
-                            coroutineScope.launch {
-                                repository.delete(alarm)
-                                AlarmManagerHelper.cancelAlarm(context, alarm)
-                            }
-                        })
+                            },
+                            onEdit = {
+                                sheetRoutes = SheetRoutes.Main
+                                selectedAlarm = alarm
+                                showBottomSheet = true
+                            },
+                            onDelete = {
+                                coroutineScope.launch {
+                                    repository.delete(alarm)
+                                    AlarmManagerHelper.cancelAlarm(context, alarm)
+
+                                    repository.getAllAlarms().collectLatest { list ->
+                                        withContext(Dispatchers.Main) {
+                                            alarms = list
+                                        }
+                                    }
+                                }
+                            })
                     }
                 }
             }
@@ -200,7 +220,12 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                     ) else selectedAlarm
             )
         }
-        var repeat by remember { mutableStateOf<RepeatAlarm>(RepeatAlarm.fromStringTo(alarm.repeatDays.sortedDescending().joinToString { dayToString(it) })) }
+        var repeat by remember {
+            mutableStateOf<RepeatAlarm>(
+                RepeatAlarm.fromStringTo(
+                    alarm.repeatDays.sortedDescending().joinToString { dayToString(it) })
+            )
+        }
         val alarmManager =
             remember { context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager }
         var selectedSoundItem by remember {
@@ -285,7 +310,12 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                                 repository.insert(alarm.copy(isEnabled = true))
                                                 alarm  // Note: id is auto-generated, but for simplicity, assume we refetch or update
                                             } else {
-                                                repository.update(alarm.copy(id = selectedAlarm.id, isEnabled = true))
+                                                repository.update(
+                                                    alarm.copy(
+                                                        id = selectedAlarm.id,
+                                                        isEnabled = true
+                                                    )
+                                                )
                                                 alarm.copy(id = selectedAlarm.id, isEnabled = true)
                                             }
                                             AlarmManagerHelper.setAlarm(context, savedAlarm)
@@ -760,11 +790,11 @@ fun AlarmListScreen(navController: NavController, context: Context) {
 @Composable
 fun AlarmItem(
     alarm: Alarm,
+    listMode: ListMode,
     onToggle: (Boolean) -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: (Alarm) -> Unit
 ) {
-
     val trackColor by animateColorAsState(
         targetValue = if (alarm.isEnabled) switchCheckedColor else Color.White.copy(0.1f),
         animationSpec = tween(durationMillis = Constants.SWITCH_ANIM_DELAY),
@@ -781,6 +811,39 @@ fun AlarmItem(
         targetValue = if (alarm.isEnabled) Color.White else Color.White.copy(alpha = 0.5f),
         animationSpec = tween(durationMillis = Constants.SWITCH_ANIM_DELAY),
         label = "textColorAnimation"
+    )
+
+    // Анимация смещения и прозрачности для переключателя
+    val switchOffset by animateFloatAsState(
+        targetValue = if (listMode == ListMode.DELETING) 100f else 0f,
+        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+        label = "switchOffset"
+    )
+
+    val switchAlpha by animateFloatAsState(
+        targetValue = if (listMode == ListMode.DELETING) 0f else 1f,
+        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+        label = "switchAlpha"
+    )
+
+    // Анимация смещения и прозрачности для кнопки удаления
+    val deleteOffset by animateFloatAsState(
+        targetValue = if (listMode == ListMode.DELETING) 0f else -100f,
+        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+        label = "deleteOffset"
+    )
+
+    val deleteAlpha by animateFloatAsState(
+        targetValue = if (listMode == ListMode.DELETING) 1f else 0f,
+        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+        label = "deleteAlpha"
+    )
+
+    // Анимация отступа для контента — чтобы он "отодвигался" при появлении кнопки
+    val contentStartPadding by animateDpAsState(
+        targetValue = if (listMode == ListMode.DELETING) 44.dp else 0.dp, // 28.dp кнопка + 16.dp отступ
+        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+        label = "contentStartPadding"
     )
 
     Column(
@@ -803,12 +866,49 @@ fun AlarmItem(
             thickness = 1.dp,
             color = DividerDefaults.color
         )
+
         Row(
             modifier = Modifier.wrapContentSize(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            // Кнопка удаления — анимированное появление слева
+            Box(
+                modifier = Modifier
+                    .graphicsLayer {
+                        translationX = deleteOffset
+                        alpha = deleteAlpha
+                    }
+            ) {
+                if (listMode == ListMode.DELETING) { // Только рендерим, если нужно — оптимизация
+                    IconButton(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = alarmRedColor
+                        ),
+                        onClick = {
+                            onDelete(alarm)
+                        },
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(12.dp)
+                                .height(4.dp)
+                                .background(Color.White)
+                        )
+                    }
+                }
+            }
+
+            // Убираем Spacer — вместо него анимируем paddingStart у Column
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = contentStartPadding) // ← Анимированный отступ!
+            ) {
                 Text(
                     text = String.format("%02d:%02d", alarm.hour, alarm.minute),
                     style = MaterialTheme.typography.titleMedium.copy(
@@ -827,22 +927,34 @@ fun AlarmItem(
                 )
             }
 
+            // Переключатель — анимированное исчезновение вправо
             Box(
                 modifier = Modifier
                     .width(44.dp)
                     .height(28.dp)
-                    .clip(CircleShape)
-                    .background(trackColor)
-                    .clickable { onToggle(!alarm.isEnabled) },
-                contentAlignment = Alignment.CenterStart
+                    .graphicsLayer {
+                        translationX = switchOffset
+                        alpha = switchAlpha
+                    }
             ) {
-                Box(
-                    modifier = Modifier
-                        .offset(x = thumbOffset)
-                        .size(26.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                )
+                if (listMode != ListMode.DELETING) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .background(trackColor)
+                            .clickable { onToggle(!alarm.isEnabled) },
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .offset(x = thumbOffset)
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                        )
+                    }
+                }
             }
         }
     }
@@ -866,4 +978,8 @@ open class SheetRoutes {
     data object Main : SheetRoutes()
     data object Sounds : SheetRoutes()
     data object Repeat : SheetRoutes()
+}
+
+enum class ListMode {
+    MAIN, DELETING
 }
