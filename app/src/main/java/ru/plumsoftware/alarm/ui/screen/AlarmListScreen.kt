@@ -22,9 +22,9 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -45,6 +45,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.util.lerp
 import com.commandiron.wheel_picker_compose.WheelTimePicker
 import com.commandiron.wheel_picker_compose.core.WheelPickerDefaults
 import ru.plumsoftware.alarm.data.Alarm
@@ -100,6 +102,12 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                     minute = 0
                 )
             }
+        }
+    }
+
+    LaunchedEffect(alarms) {
+        if (alarms.isEmpty()) {
+            listMode = ListMode.MAIN
         }
     }
 
@@ -795,6 +803,27 @@ fun AlarmItem(
     onEdit: () -> Unit,
     onDelete: (Alarm) -> Unit
 ) {
+    // Одна анимация прогресса для всего!
+    val deletionProgress = remember { Animatable(0f) }
+
+    LaunchedEffect(listMode) {
+        val target = if (listMode == ListMode.DELETING) 1f else 0f
+        if (deletionProgress.value != target) {
+            deletionProgress.animateTo(
+                targetValue = target,
+                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+            )
+        }
+    }
+
+    // Вычисляем все параметры на основе одного прогресса
+    val switchOffset = lerp(0f, 100f, deletionProgress.value)
+    val switchAlpha = lerp(1f, 0f, deletionProgress.value)
+    val deleteOffset = lerp(-100f, 0f, deletionProgress.value)
+    val deleteAlpha = lerp(0f, 1f, deletionProgress.value)
+    val contentStartPadding = lerp(0.dp, 44.dp, deletionProgress.value)
+
+    // Анимации, зависящие от alarm.isEnabled — оставляем как есть (они не связаны с listMode)
     val trackColor by animateColorAsState(
         targetValue = if (alarm.isEnabled) switchCheckedColor else Color.White.copy(0.1f),
         animationSpec = tween(durationMillis = Constants.SWITCH_ANIM_DELAY),
@@ -811,39 +840,6 @@ fun AlarmItem(
         targetValue = if (alarm.isEnabled) Color.White else Color.White.copy(alpha = 0.5f),
         animationSpec = tween(durationMillis = Constants.SWITCH_ANIM_DELAY),
         label = "textColorAnimation"
-    )
-
-    // Анимация смещения и прозрачности для переключателя
-    val switchOffset by animateFloatAsState(
-        targetValue = if (listMode == ListMode.DELETING) 100f else 0f,
-        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-        label = "switchOffset"
-    )
-
-    val switchAlpha by animateFloatAsState(
-        targetValue = if (listMode == ListMode.DELETING) 0f else 1f,
-        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-        label = "switchAlpha"
-    )
-
-    // Анимация смещения и прозрачности для кнопки удаления
-    val deleteOffset by animateFloatAsState(
-        targetValue = if (listMode == ListMode.DELETING) 0f else -100f,
-        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-        label = "deleteOffset"
-    )
-
-    val deleteAlpha by animateFloatAsState(
-        targetValue = if (listMode == ListMode.DELETING) 1f else 0f,
-        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-        label = "deleteAlpha"
-    )
-
-    // Анимация отступа для контента — чтобы он "отодвигался" при появлении кнопки
-    val contentStartPadding by animateDpAsState(
-        targetValue = if (listMode == ListMode.DELETING) 44.dp else 0.dp, // 28.dp кнопка + 16.dp отступ
-        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-        label = "contentStartPadding"
     )
 
     Column(
@@ -872,7 +868,7 @@ fun AlarmItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start
         ) {
-            // Кнопка удаления — анимированное появление слева
+            // Кнопка удаления
             Box(
                 modifier = Modifier
                     .graphicsLayer {
@@ -880,7 +876,7 @@ fun AlarmItem(
                         alpha = deleteAlpha
                     }
             ) {
-                if (listMode == ListMode.DELETING) { // Только рендерим, если нужно — оптимизация
+                if (deletionProgress.value > 0.01f) { // Показываем, если почти началась анимация
                     IconButton(
                         modifier = Modifier
                             .size(28.dp)
@@ -888,9 +884,7 @@ fun AlarmItem(
                         colors = IconButtonDefaults.iconButtonColors(
                             containerColor = alarmRedColor
                         ),
-                        onClick = {
-                            onDelete(alarm)
-                        },
+                        onClick = { onDelete(alarm) },
                     ) {
                         Box(
                             modifier = Modifier
@@ -902,18 +896,14 @@ fun AlarmItem(
                 }
             }
 
-            // Убираем Spacer — вместо него анимируем paddingStart у Column
-
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = contentStartPadding) // ← Анимированный отступ!
+                    .padding(start = contentStartPadding)
             ) {
                 Text(
                     text = String.format("%02d:%02d", alarm.hour, alarm.minute),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        color = textColor
-                    )
+                    style = MaterialTheme.typography.titleMedium.copy(color = textColor)
                 )
                 if (alarm.repeatDays.isNotEmpty())
                     Text(
@@ -927,7 +917,7 @@ fun AlarmItem(
                 )
             }
 
-            // Переключатель — анимированное исчезновение вправо
+            // Переключатель
             Box(
                 modifier = Modifier
                     .width(44.dp)
@@ -937,7 +927,7 @@ fun AlarmItem(
                         alpha = switchAlpha
                     }
             ) {
-                if (listMode != ListMode.DELETING) {
+                if (deletionProgress.value < 0.99f) { // Скрываем, если почти закончилась анимация
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
