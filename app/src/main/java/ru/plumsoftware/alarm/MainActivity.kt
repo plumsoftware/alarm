@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
@@ -19,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -32,6 +34,10 @@ import com.yandex.mobile.ads.common.AdRequestConfiguration
 import com.yandex.mobile.ads.common.AdRequestError
 import com.yandex.mobile.ads.common.ImpressionData
 import com.yandex.mobile.ads.common.MobileAds.initialize
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import ru.plumsoftware.alarm.data.AdsConfig
 import ru.plumsoftware.alarm.ui.screen.AlarmListScreen
 import ru.plumsoftware.alarm.ui.theme.AlarmTheme
@@ -85,10 +91,27 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         initialize(this) {
-            showOpenAds()
+            CoroutineScope(Dispatchers.IO).launch {
+                val sp = getSharedPreferences("alarm_settings", MODE_PRIVATE)
+                val count = sp.getInt("count_of_launches", 0)
+
+                if (count <= 2) {
+                    sp.edit {
+                        putInt("count_of_launches", (count + 1))
+                    }
+                    return@launch
+                } else {
+                    withContext(Dispatchers.Main) {
+                        showOpenAds()
+                    }
+                }
+            }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                )
                 != PackageManager.PERMISSION_GRANTED
             ) {
                 // Запрашиваем разрешение
@@ -111,7 +134,10 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     NavHost(navController = navController, startDestination = "alarm_list") {
                         composable("alarm_list") {
-                            AlarmListScreen(navController = navController, context = this@MainActivity)
+                            AlarmListScreen(
+                                navController = navController,
+                                context = this@MainActivity
+                            )
                         }
                     }
                 }
