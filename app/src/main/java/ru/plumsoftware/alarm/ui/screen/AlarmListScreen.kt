@@ -16,9 +16,16 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
+import android.content.res.Resources
 import android.icu.util.Calendar
 import android.os.Build
 import android.provider.Settings
+import android.view.View
+import android.view.ViewTreeObserver
+import android.view.Window
+import android.view.WindowInsetsController
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
@@ -27,23 +34,36 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.filled.WatchLater
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.WatchLater
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.util.lerp
@@ -57,6 +77,7 @@ import ru.plumsoftware.alarm.ui.components.SecondaryButton
 import ru.plumsoftware.alarm.ui.theme.primaryColor
 import ru.plumsoftware.alarm.ui.theme.switchCheckedColor
 import androidx.core.net.toUri
+import androidx.core.view.WindowCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.plumsoftware.alarm.data.alarmSounds
@@ -65,6 +86,8 @@ import ru.plumsoftware.alarm.ui.theme.alarmGrayTextColor
 import ru.plumsoftware.alarm.ui.theme.alarmRedColor
 import java.time.LocalTime
 import kotlin.collections.sortedDescending
+import ru.plumsoftware.alarm.R
+import ru.plumsoftware.alarm.ui.theme.alarmBottomBarColor
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,6 +109,8 @@ fun AlarmListScreen(navController: NavController, context: Context) {
 
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp.dp
+
+    var selectedBottomItemIndex by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         repository.getAllAlarms().collectLatest { list ->
@@ -113,97 +138,264 @@ fun AlarmListScreen(navController: NavController, context: Context) {
 
     Scaffold(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 6.dp),
+            .fillMaxSize(),
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                ),
-                navigationIcon = {
-                    SecondaryButton(
-                        text = if (listMode == ListMode.MAIN) "Редакировать" else "Готово",
-                        onClick = {
-                            when (listMode) {
-                                ListMode.MAIN -> listMode = ListMode.DELETING
-                                ListMode.DELETING -> listMode = ListMode.MAIN
-                            }
-                        }
-                    )
-                },
-                title = {},
-                actions = {
-                    IconButton(
-                        onClick = {
-                            sheetRoutes = SheetRoutes.Main
-                            showBottomSheet = true
-                        },
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = null,
-                            tint = primaryColor
-                        )
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.Top,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "Будильники",
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.titleLarge,
-                textAlign = TextAlign.Start
-            )
-            if (alarms.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Нет будильников. Добавьте новый.")
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.padding(top = 24.dp)
-                ) {
-                    items(alarms) { alarm ->
-                        AlarmItem(
-                            listMode = listMode,
-                            alarm = alarm,
-                            onToggle = { enabled ->
-                                val updated = alarm.copy(isEnabled = enabled)
-                                coroutineScope.launch {
-                                    repository.update(updated)
-                                    if (enabled) {
-                                        AlarmManagerHelper.setAlarm(context, updated)
-                                    } else {
-                                        AlarmManagerHelper.cancelAlarm(context, updated)
-                                    }
+            if (selectedBottomItemIndex == 0)
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent
+                    ),
+                    navigationIcon = {
+                        SecondaryButton(
+                            text = if (listMode == ListMode.MAIN) "Редакировать" else "Готово",
+                            onClick = {
+                                listMode = when (listMode) {
+                                    ListMode.MAIN -> ListMode.DELETING
+                                    ListMode.DELETING -> ListMode.MAIN
                                 }
-                            },
-                            onEdit = {
+                            }
+                        )
+                    },
+                    title = {},
+                    actions = {
+                        IconButton(
+                            onClick = {
                                 sheetRoutes = SheetRoutes.Main
-                                selectedAlarm = alarm
                                 showBottomSheet = true
                             },
-                            onDelete = {
-                                coroutineScope.launch {
-                                    repository.delete(alarm)
-                                    AlarmManagerHelper.cancelAlarm(context, alarm)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = null,
+                                tint = primaryColor
+                            )
+                        }
+                    }
+                )
+        },
+    ) { padding ->
 
-                                    repository.getAllAlarms().collectLatest { list ->
-                                        withContext(Dispatchers.Main) {
-                                            alarms = list
+        Box(modifier = Modifier.fillMaxSize()) {
+            when (selectedBottomItemIndex) {
+                0 -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                            .padding(horizontal = 18.dp),
+                        verticalArrangement = Arrangement.Top,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Будильники",
+                            modifier = Modifier.fillMaxWidth(),
+                            style = MaterialTheme.typography.titleLarge,
+                            textAlign = TextAlign.Start
+                        )
+                        if (alarms.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("Нет будильников. Добавьте новый.")
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.padding(top = 24.dp)
+                            ) {
+                                items(alarms) { alarm ->
+                                    Column {
+                                        AlarmItem(
+                                            listMode = listMode,
+                                            alarm = alarm,
+                                            onToggle = { enabled ->
+                                                val updated = alarm.copy(isEnabled = enabled)
+                                                coroutineScope.launch {
+                                                    repository.update(updated)
+                                                    if (enabled) {
+                                                        AlarmManagerHelper.setAlarm(
+                                                            context,
+                                                            updated
+                                                        )
+                                                    } else {
+                                                        AlarmManagerHelper.cancelAlarm(
+                                                            context,
+                                                            updated
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            onEdit = {
+                                                sheetRoutes = SheetRoutes.Main
+                                                selectedAlarm = alarm
+                                                showBottomSheet = true
+                                            },
+                                            onDelete = {
+                                                coroutineScope.launch {
+                                                    repository.delete(alarm)
+                                                    AlarmManagerHelper.cancelAlarm(context, alarm)
+
+                                                    repository.getAllAlarms()
+                                                        .collectLatest { list ->
+                                                            withContext(Dispatchers.Main) {
+                                                                alarms = list
+                                                            }
+                                                        }
+                                                }
+                                            })
+
+                                        if (alarms.last().id == alarm.id) {
+                                            Spacer(modifier = Modifier.height(120.dp))
                                         }
                                     }
                                 }
-                            })
+                            }
+                        }
                     }
+                }
+
+                1 -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                            .padding(horizontal = 18.dp),
+                        verticalArrangement = Arrangement.Top,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        SecScreen()
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 0.dp, top = 12.dp)
+                    .background(color = alarmBottomBarColor.copy(alpha = 0.95f))
+                    .blur(50.dp),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = getNavigationBarHeight(), top = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(all = 8.dp)
+                            .clickable(true) {
+                                selectedBottomItemIndex = 0
+                            },
+                        verticalArrangement = Arrangement.spacedBy(
+                            space = 8.dp,
+                            alignment = Alignment.CenterVertically
+                        ),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Image(
+                            modifier = Modifier.size(24.dp),
+                            painter = painterResource(R.drawable.alarm),
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(if (selectedBottomItemIndex == 0) primaryColor else alarmGrayTextColor),
+                        )
+                        Text(
+                            text = "Будильник",
+                            style = MaterialTheme.typography.bodySmall.copy(color = if (selectedBottomItemIndex == 0) primaryColor else alarmGrayTextColor)
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .padding(all = 8.dp)
+                            .clickable(true) {
+                                selectedBottomItemIndex = 1
+                            },
+                        verticalArrangement = Arrangement.spacedBy(
+                            space = 8.dp,
+                            alignment = Alignment.CenterVertically
+                        ),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            modifier = Modifier.size(24.dp),
+                            imageVector = Icons.Rounded.WatchLater,
+                            contentDescription = null,
+                            tint = if (selectedBottomItemIndex == 1) primaryColor else alarmGrayTextColor
+                        )
+                        Text(
+                            text = "Секундомер",
+                            style = MaterialTheme.typography.bodySmall.copy(color = if (selectedBottomItemIndex == 1) primaryColor else alarmGrayTextColor)
+                        )
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = getNavigationBarHeight(), top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(all = 8.dp)
+                        .background(Color.Transparent)
+                        .clickable(
+                            enabled = true,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            selectedBottomItemIndex = 0
+                        },
+                    verticalArrangement = Arrangement.spacedBy(
+                        space = 8.dp,
+                        alignment = Alignment.CenterVertically
+                    ),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Image(
+                        modifier = Modifier.size(24.dp),
+                        painter = painterResource(R.drawable.alarm),
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(if (selectedBottomItemIndex == 0) primaryColor else alarmGrayTextColor),
+                    )
+                    Text(
+                        text = "Будильник",
+                        style = MaterialTheme.typography.bodySmall.copy(color = if (selectedBottomItemIndex == 0) primaryColor else alarmGrayTextColor)
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .padding(all = 8.dp)
+                        .clickable(
+                            enabled = true,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            selectedBottomItemIndex = 1
+                        },
+                    verticalArrangement = Arrangement.spacedBy(
+                        space = 8.dp,
+                        alignment = Alignment.CenterVertically
+                    ),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        modifier = Modifier.size(24.dp),
+                        imageVector = Icons.Rounded.WatchLater,
+                        contentDescription = null,
+                        tint = if (selectedBottomItemIndex == 1) primaryColor else alarmGrayTextColor
+                    )
+                    Text(
+                        text = "Секундомер",
+                        style = MaterialTheme.typography.bodySmall.copy(color = if (selectedBottomItemIndex == 1) primaryColor else alarmGrayTextColor)
+                    )
                 }
             }
         }
@@ -263,14 +455,27 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                 .padding(top = 48.dp),
             onDismissRequest = { showBottomSheet = false },
             sheetState = modalSheetState,
-            contentWindowInsets = {
-                BottomSheetDefaults.windowInsets
-//                    .add(WindowInsets.navigationBars)
-                    .add(WindowInsets.statusBars)
-            },
+            contentWindowInsets = { WindowInsets(0, 64, 0, 0) },
             dragHandle = null,
             properties = ModalBottomSheetProperties(shouldDismissOnBackPress = true)
         ) {
+
+            val view = LocalView.current
+            val context = LocalContext.current
+            val window = LocalActivity.current?.window
+            val resources = LocalActivity.current?.resources
+
+            // Initial hiding of the status bar
+            SideEffect {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    view.windowInsetsController?.hide(android.view.WindowInsets.Type.statusBars())
+                    view.windowInsetsController?.hide(android.view.WindowInsets.Type.navigationBars())
+                } else {
+                    @Suppress("DEPRECATION")
+                    view.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN
+                }
+            }
+
             when (sheetRoutes) {
                 SheetRoutes.Main -> {
                     Column(
@@ -793,6 +998,93 @@ fun AlarmListScreen(navController: NavController, context: Context) {
             }
         }
     }
+}
+
+fun setupEdgeToEdge(window: Window?, resources: Resources?) {
+    if (window != null) {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+    }
+
+    // Определяем текущую тему (светлая/темная)
+    val nightModeFlags = resources?.configuration?.uiMode?.and(Configuration.UI_MODE_NIGHT_MASK)
+    val isDarkTheme = true
+
+    var systemUiVisibilityFlags = (
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            )
+
+    // Делаем статус бар и нав бар прозрачными
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        // Настройка цвета иконок для Android 5–10
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!isDarkTheme) {
+                // СВЕТЛАЯ ТЕМА — ТЁМНЫЕ ИКОНКИ
+                systemUiVisibilityFlags =
+                    systemUiVisibilityFlags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            }
+            // Для тёмной темы оставляем светлые иконки (по умолчанию)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (!isDarkTheme) {
+                // СВЕТЛАЯ ТЕМА — ТЁМНЫЕ ИКОНКИ НАВИГАЦИИ
+                systemUiVisibilityFlags =
+                    systemUiVisibilityFlags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            }
+            // Для тёмной темы оставляем светлые иконки (по умолчанию)
+        }
+
+        @Suppress("DEPRECATION")
+        window?.decorView?.systemUiVisibility = systemUiVisibilityFlags
+        @Suppress("DEPRECATION")
+        window?.statusBarColor = android.graphics.Color.TRANSPARENT
+        @Suppress("DEPRECATION")
+        window?.navigationBarColor = android.graphics.Color.TRANSPARENT
+    }
+
+    // Для Android 10+ убираем затемнение под нав баром
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        @Suppress("DEPRECATION")
+        window?.isNavigationBarContrastEnforced = false
+    }
+
+    // Для Android 11+ используем новый API
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        window?.setDecorFitsSystemWindows(false)
+
+        val controller = window?.insetsController
+        controller?.let {
+            // Убеждаемся, что нав бар остаётся видимым
+            it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+            // Настройка цвета иконок для Android 11+
+            if (!isDarkTheme) {
+                // СВЕТЛАЯ ТЕМА — ТЁМНЫЕ ИКОНКИ
+                it.setSystemBarsAppearance(
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+                            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+                            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                )
+            } else {
+                // ТЁМНАЯ ТЕМА — СВЕТЛЫЕ ИКОНКИ (убираем флаги светлых иконок)
+                it.setSystemBarsAppearance(
+                    0,
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+                            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun getNavigationBarHeight(): Dp {
+    val density = LocalDensity.current
+    val navigationBarHeightPx = WindowInsets.navigationBars.getBottom(density)
+    return with(density) { navigationBarHeightPx.toDp() }
 }
 
 @Composable

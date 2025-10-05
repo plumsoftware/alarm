@@ -14,8 +14,8 @@ android {
         applicationId = "ru.plumsoftware.alarm"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -75,4 +75,12 @@ dependencies {
     implementation("com.github.commandiron:WheelPickerCompose:1.1.11")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("com.yandex.android:mobileads:7.15.1")
+
+    // VK AD
+    implementation(libs.mytarget.sdk)
+
+    // Analytics
+    implementation(libs.firebase.analytics)
+
+    implementation(libs.material.icons.extended)
 }
