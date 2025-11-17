@@ -157,7 +157,7 @@ class MainActivity : ComponentActivity() {
     private fun showOpenAds() {
         var mAppOpenAd: AppOpenAd?
         val appOpenAdLoader = AppOpenAdLoader(this)
-        val AD_UNIT_ID: String = AdsConfig.OPEN_MAIN_SCREEN_AD
+        val AD_UNIT_ID: String = MyApplication.adsConfig.OPEN_MAIN_SCREEN_AD
         val adRequestConfiguration = AdRequestConfiguration.Builder(AD_UNIT_ID).build()
 
         val appOpenAdEventListener: AppOpenAdEventListener = object : AppOpenAdEventListener {
