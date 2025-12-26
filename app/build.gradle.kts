@@ -14,8 +14,8 @@ android {
         applicationId = "ru.plumsoftware.alarm"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.2.1"
+        versionCode = 5
+        versionName = "1.2.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -77,14 +77,14 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 //    implementation("androidx.alarm:alarm-manager:1.0.0")
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    kapt("androidx.room:room-compiler:2.6.1")
-    implementation("androidx.navigation:navigation-compose:2.8.0-beta06")
-    implementation("com.google.code.gson:gson:2.11.0")
-    implementation("com.github.commandiron:WheelPickerCompose:1.1.11")
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
-    implementation("com.yandex.android:mobileads:7.17.0")
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    kapt(libs.androidx.room.compiler)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.gson)
+    implementation(libs.wheelpickercompose)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.mobileads)
 
     // VK AD
     implementation(libs.mytarget.sdk)

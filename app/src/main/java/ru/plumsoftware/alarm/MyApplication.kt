@@ -10,6 +10,6 @@ class MyApplication : Application() {
     }
 
     companion object {
-        val adsConfig = AdsConfig.HuaweiAppGallery()
+        val adsConfig = AdsConfig.RuStore()
     }
 }
