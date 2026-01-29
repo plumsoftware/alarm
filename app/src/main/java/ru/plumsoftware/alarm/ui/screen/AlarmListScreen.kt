@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.WatchLater
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.WatchLater
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -192,6 +193,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                             style = MaterialTheme.typography.titleLarge,
                             textAlign = TextAlign.Start
                         )
+                        // ... (остальной код списка будильников без изменений) ...
                         if (alarms.isEmpty()) {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
@@ -200,9 +202,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                 Text("Нет будильников. Добавьте новый.")
                             }
                         } else {
-                            LazyColumn(
-                                modifier = Modifier.padding(top = 24.dp)
-                            ) {
+                            LazyColumn(modifier = Modifier.padding(top = 24.dp)) {
                                 items(alarms) { alarm ->
                                     Column {
                                         AlarmItem(
@@ -212,17 +212,14 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                                 val updated = alarm.copy(isEnabled = enabled)
                                                 coroutineScope.launch {
                                                     repository.update(updated)
-                                                    if (enabled) {
-                                                        AlarmManagerHelper.setAlarm(
-                                                            context,
-                                                            updated
-                                                        )
-                                                    } else {
-                                                        AlarmManagerHelper.cancelAlarm(
-                                                            context,
-                                                            updated
-                                                        )
-                                                    }
+                                                    if (enabled) AlarmManagerHelper.setAlarm(
+                                                        context,
+                                                        updated
+                                                    )
+                                                    else AlarmManagerHelper.cancelAlarm(
+                                                        context,
+                                                        updated
+                                                    )
                                                 }
                                             },
                                             onEdit = {
@@ -234,7 +231,6 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                                 coroutineScope.launch {
                                                     repository.delete(alarm)
                                                     AlarmManagerHelper.cancelAlarm(context, alarm)
-
                                                     repository.getAllAlarms()
                                                         .collectLatest { list ->
                                                             withContext(Dispatchers.Main) {
@@ -242,11 +238,13 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                                             }
                                                         }
                                                 }
-                                            })
-
-                                        if (alarms.last().id == alarm.id) {
-                                            Spacer(modifier = Modifier.height(120.dp))
-                                        }
+                                            }
+                                        )
+                                        if (alarms.last().id == alarm.id) Spacer(
+                                            modifier = Modifier.height(
+                                                120.dp
+                                            )
+                                        )
                                     }
                                 }
                             }
@@ -266,8 +264,23 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                         SecScreen()
                     }
                 }
+
+                2 -> {
+                    // --- NEW TIMER SCREEN ---
+                    // Таймер
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding),
+                        verticalArrangement = Arrangement.Top,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        TimerScreen()
+                    }
+                }
             }
 
+            // --- BOTTOM BAR (СЛОЙ 1: РАЗМЫТЫЙ ФОН) ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -282,18 +295,14 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                         .align(Alignment.BottomCenter)
                         .padding(bottom = getNavigationBarHeight(), top = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    horizontalArrangement = Arrangement.SpaceEvenly // Равномерно для 3 элементов
                 ) {
+                    // 1. Будильник (Фон)
                     Column(
                         modifier = Modifier
                             .padding(all = 8.dp)
-                            .clickable(true) {
-                                selectedBottomItemIndex = 0
-                            },
-                        verticalArrangement = Arrangement.spacedBy(
-                            space = 8.dp,
-                            alignment = Alignment.CenterVertically
-                        ),
+                            .clickable(true) { selectedBottomItemIndex = 0 },
+                        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Image(
@@ -308,16 +317,12 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                         )
                     }
 
+                    // 2. Секундомер (Фон)
                     Column(
                         modifier = Modifier
                             .padding(all = 8.dp)
-                            .clickable(true) {
-                                selectedBottomItemIndex = 1
-                            },
-                        verticalArrangement = Arrangement.spacedBy(
-                            space = 8.dp,
-                            alignment = Alignment.CenterVertically
-                        ),
+                            .clickable(true) { selectedBottomItemIndex = 1 },
+                        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
@@ -331,16 +336,39 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                             style = MaterialTheme.typography.bodySmall.copy(color = if (selectedBottomItemIndex == 1) primaryColor else alarmGrayTextColor)
                         )
                     }
+
+                    // 3. Таймер (Фон) - НОВОЕ
+                    Column(
+                        modifier = Modifier
+                            .padding(all = 8.dp)
+                            .clickable(true) { selectedBottomItemIndex = 2 },
+                        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            modifier = Modifier.size(24.dp),
+                            imageVector = Icons.Rounded.Timer, // Убедись, что импортировал androidx.compose.material.icons.rounded.Timer
+                            contentDescription = null,
+                            tint = if (selectedBottomItemIndex == 2) primaryColor else alarmGrayTextColor
+                        )
+                        Text(
+                            text = "Таймер",
+                            style = MaterialTheme.typography.bodySmall.copy(color = if (selectedBottomItemIndex == 2) primaryColor else alarmGrayTextColor)
+                        )
+                    }
                 }
             }
+
+            // --- BOTTOM BAR (СЛОЙ 2: КЛИКАБЕЛЬНЫЙ ПЕРЕДНИЙ ПЛАН) ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
                     .padding(bottom = getNavigationBarHeight(), top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceEvenly // Равномерно для 3 элементов
             ) {
+                // 1. Будильник (Кликабельный)
                 Column(
                     modifier = Modifier
                         .padding(all = 8.dp)
@@ -349,13 +377,8 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                             enabled = true,
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
-                        ) {
-                            selectedBottomItemIndex = 0
-                        },
-                    verticalArrangement = Arrangement.spacedBy(
-                        space = 8.dp,
-                        alignment = Alignment.CenterVertically
-                    ),
+                        ) { selectedBottomItemIndex = 0 },
+                    verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Image(
@@ -370,6 +393,7 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                     )
                 }
 
+                // 2. Секундомер (Кликабельный)
                 Column(
                     modifier = Modifier
                         .padding(all = 8.dp)
@@ -377,13 +401,8 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                             enabled = true,
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
-                        ) {
-                            selectedBottomItemIndex = 1
-                        },
-                    verticalArrangement = Arrangement.spacedBy(
-                        space = 8.dp,
-                        alignment = Alignment.CenterVertically
-                    ),
+                        ) { selectedBottomItemIndex = 1 },
+                    verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(
@@ -395,6 +414,30 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                     Text(
                         text = "Секундомер",
                         style = MaterialTheme.typography.bodySmall.copy(color = if (selectedBottomItemIndex == 1) primaryColor else alarmGrayTextColor)
+                    )
+                }
+
+                // 3. Таймер (Кликабельный) - НОВОЕ
+                Column(
+                    modifier = Modifier
+                        .padding(all = 8.dp)
+                        .clickable(
+                            enabled = true,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { selectedBottomItemIndex = 2 },
+                    verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        modifier = Modifier.size(24.dp),
+                        imageVector = Icons.Rounded.Timer,
+                        contentDescription = null,
+                        tint = if (selectedBottomItemIndex == 2) primaryColor else alarmGrayTextColor
+                    )
+                    Text(
+                        text = "Таймер",
+                        style = MaterialTheme.typography.bodySmall.copy(color = if (selectedBottomItemIndex == 2) primaryColor else alarmGrayTextColor)
                     )
                 }
             }
