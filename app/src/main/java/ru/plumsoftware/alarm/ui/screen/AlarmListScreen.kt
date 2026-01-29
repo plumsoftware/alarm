@@ -113,6 +113,8 @@ fun AlarmListScreen(navController: NavController, context: Context) {
 
     var selectedBottomItemIndex by remember { mutableIntStateOf(0) }
 
+    var selectedTimerSound by remember { mutableStateOf(alarmSounds.first()) } // Звук по умолчанию (Радар)
+
     LaunchedEffect(Unit) {
         repository.getAllAlarms().collectLatest { list ->
             alarms = list
@@ -275,7 +277,13 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                         verticalArrangement = Arrangement.Top,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        TimerScreen()
+                        TimerScreen(
+                            selectedSound = selectedTimerSound,
+                            onSoundClick = {
+                                sheetRoutes = SheetRoutes.TimerSounds
+                                showBottomSheet = true
+                            }
+                        )
                     }
                 }
             }
@@ -1038,6 +1046,22 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                         }
                     )
                 }
+
+                SheetRoutes.TimerSounds -> {
+                    AlarmSoundSheet(
+                        item = selectedTimerSound,
+                        onSelected = {
+                            selectedTimerSound = it
+                            // Мы не закрываем шторку сразу, чтобы пользователь мог послушать,
+                            // но можно и закрыть: showBottomSheet = false
+                        },
+                        onBack = {
+                            // Для таймера кнопка "Назад" просто закрывает шторку,
+                            // так как нет предыдущего экрана меню
+                            showBottomSheet = false
+                        }
+                    )
+                }
             }
         }
     }
@@ -1303,6 +1327,7 @@ open class SheetRoutes {
     data object Main : SheetRoutes()
     data object Sounds : SheetRoutes()
     data object Repeat : SheetRoutes()
+    data object TimerSounds : SheetRoutes()
 }
 
 enum class ListMode {

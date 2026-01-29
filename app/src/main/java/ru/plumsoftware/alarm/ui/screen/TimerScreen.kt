@@ -1,5 +1,8 @@
 package ru.plumsoftware.alarm.ui.screen
 
+import android.annotation.SuppressLint
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -22,13 +25,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -42,12 +50,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PaintingStyle.Companion.Stroke
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import ru.plumsoftware.alarm.R
 import ru.plumsoftware.alarm.ui.theme.alarmCardColor
 import ru.plumsoftware.alarm.ui.theme.alarmSecContainer
@@ -56,22 +70,46 @@ import ru.plumsoftware.alarm.ui.theme.primaryColor
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import ru.plumsoftware.alarm.ui.theme.*
 
 // --- START OF TIMER COMPONENTS ---
-
+@SuppressLint("LocalContextResourcesRead")
 @Composable
-fun TimerScreen() {
+fun TimerScreen(
+    selectedSound: Pair<String, Int>, // Текущий выбранный звук
+    onSoundClick: () -> Unit          // Коллбек нажатия
+) {
     // Состояния таймера
     var timeState by remember { mutableStateOf(TimerState.IDLE) }
     var totalTimeInMillis by remember { mutableLongStateOf(0L) }
     var remainingTimeInMillis by remember { mutableLongStateOf(0L) }
+
+    val mediaPlayer = remember { MediaPlayer() }
+    val context = LocalContext.current
+    var currentVolume by remember { mutableFloatStateOf(1.0f) }
 
     // Значения пикеров
     var selectedHour by remember { mutableIntStateOf(0) }
     var selectedMinute by remember { mutableIntStateOf(0) }
     var selectedSecond by remember { mutableIntStateOf(0) }
 
-    // Анимация таймера
+    // Функция для остановки звука
+    fun stopAudio() {
+        if (mediaPlayer.isPlaying) {
+            mediaPlayer.stop()
+        }
+        mediaPlayer.reset()
+    }
+
+    // Очистка ресурсов при уходе с экрана
+    DisposableEffect(Unit) {
+        onDispose {
+            stopAudio()
+            mediaPlayer.release()
+        }
+    }
+
+    // Анимация таймера и логика завершения
     LaunchedEffect(timeState, remainingTimeInMillis) {
         if (timeState == TimerState.RUNNING && remainingTimeInMillis > 0) {
             val startTime = System.currentTimeMillis()
@@ -83,9 +121,33 @@ fun TimerScreen() {
                 remainingTimeInMillis = (startRemaining - elapsed).coerceAtLeast(0L)
             }
 
+            // ТАЙМЕР ЗАВЕРШИЛСЯ
             if (remainingTimeInMillis == 0L && timeState == TimerState.RUNNING) {
                 timeState = TimerState.IDLE
-                // Здесь можно добавить звук окончания таймера
+
+                // Запускаем звук
+                try {
+                    // Сначала сбрасываем, если что-то играло
+                    if (mediaPlayer.isPlaying) mediaPlayer.stop()
+                    mediaPlayer.reset()
+
+                    val resourceId = selectedSound.second
+                    val assetFd = context.resources.openRawResourceFd(resourceId)
+                    mediaPlayer.setDataSource(assetFd.fileDescriptor, assetFd.startOffset, assetFd.length)
+                    assetFd.close()
+                    mediaPlayer.setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .build()
+                    )
+                    mediaPlayer.isLooping = true // Зацикливаем звук таймера
+                    mediaPlayer.prepare()
+                    mediaPlayer.setVolume(currentVolume, currentVolume)
+                    mediaPlayer.start()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
     }
@@ -93,38 +155,66 @@ fun TimerScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 24.dp), // Отступ сверху как в оригинале
+            .padding(top = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Контент меняется в зависимости от состояния
+        // Контент (Пикеры или Круг)
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
-            if (timeState == TimerState.IDLE) {
-                // Пикер времени (Часы, Минуты, Секунды)
-                Row(
+            if (timeState == TimerState.IDLE && remainingTimeInMillis == 0L) {
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    TimerWheelPicker(
-                        range = 0..23,
-                        label = "ч",
-                        onValueChange = { selectedHour = it }
-                    )
-                    TimerWheelPicker(
-                        range = 0..59,
-                        label = "мин",
-                        onValueChange = { selectedMinute = it }
-                    )
-                    TimerWheelPicker(
-                        range = 0..59,
-                        label = "с",
-                        onValueChange = { selectedSecond = it }
-                    )
+                    // --- ПИКЕРЫ ---
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TimerWheelPicker(range = 0..23, label = "ч", onValueChange = { selectedHour = it })
+                        TimerWheelPicker(range = 0..59, label = "мин", onValueChange = { selectedMinute = it })
+                        TimerWheelPicker(range = 0..59, label = "с", onValueChange = { selectedSecond = it })
+                    }
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    // --- ПЛАШКА ВЫБОРА ЗВУКА (iOS Style) ---
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(alarmCardColor)
+                            .clickable { onSoundClick() }
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "По окончании",
+                            style = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
+                        )
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = selectedSound.first,
+                                style = MaterialTheme.typography.bodyMedium.copy(color = alarmGrayTextColor)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = alarmGrayTextColor
+                            )
+                        }
+                    }
                 }
             } else {
                 // Круговой прогресс
@@ -135,33 +225,36 @@ fun TimerScreen() {
             }
         }
 
-        // Кнопки управления (Низ экрана)
+        // Кнопки управления
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 40.dp) // Отступ от низа
-                .padding(bottom = 80.dp), // Место под BottomBar
+                .padding(horizontal = 16.dp, vertical = 40.dp)
+                .padding(bottom = 80.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Кнопка Отмена / Сброс
+            // КНОПКА ОТМЕНА
             TimerButton(
                 text = "Отмена",
                 backgroundColor = alarmCardColor,
-                textColor = Color.White, // Серый в оригинале, но белый читабельнее на темном
+                textColor = Color.White,
                 onClick = {
                     timeState = TimerState.IDLE
                     remainingTimeInMillis = 0
+                    stopAudio() // Останавливаем звук при отмене
                 }
             )
 
-            // Кнопка Старт / Пауза / Дальше
+            // КНОПКА СТАРТ / ПАУЗА
             val isRunning = timeState == TimerState.RUNNING
             TimerButton(
                 text = if (isRunning) "Пауза" else if (remainingTimeInMillis > 0 && timeState == TimerState.PAUSED) "Дальше" else "Старт",
-                backgroundColor = if (isRunning) Color(0xFF332800) else alarmSecContainer, // Желтоватый фон для паузы
-                textColor = if (isRunning) primaryColor else alarmSecText, // Оранжевый текст для паузы
+                backgroundColor = if (isRunning) Color(0xFF332800) else alarmSecContainer,
+                textColor = if (isRunning) primaryColor else alarmSecText,
                 onClick = {
+                    stopAudio() // Если звук играет (таймер кончился), нажатие сюда тоже должно его остановить
+
                     when (timeState) {
                         TimerState.IDLE -> {
                             val total = (selectedHour * 3600 + selectedMinute * 60 + selectedSecond) * 1000L
@@ -171,12 +264,8 @@ fun TimerScreen() {
                                 timeState = TimerState.RUNNING
                             }
                         }
-                        TimerState.RUNNING -> {
-                            timeState = TimerState.PAUSED
-                        }
-                        TimerState.PAUSED -> {
-                            timeState = TimerState.RUNNING
-                        }
+                        TimerState.RUNNING -> timeState = TimerState.PAUSED
+                        TimerState.PAUSED -> timeState = TimerState.RUNNING
                     }
                 }
             )
@@ -193,13 +282,12 @@ fun TimerButton(
 ) {
     Box(
         modifier = Modifier
-            .size(80.dp) // Размер кнопок как в iOS
+            .size(80.dp)
             .clip(CircleShape)
             .background(backgroundColor)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        // Внешняя обводка (для стиля кнопки "Старт" в iOS есть двойное кольцо, упростим до одного)
         Box(
             modifier = Modifier
                 .size(76.dp)
@@ -220,7 +308,6 @@ fun TimerButton(
 fun CircularTimerProgress(totalTime: Long, remainingTime: Long) {
     val progress = if (totalTime > 0) remainingTime.toFloat() / totalTime.toFloat() else 0f
 
-    // Форматирование времени
     val hours = remainingTime / 1000 / 3600
     val minutes = (remainingTime / 1000 % 3600) / 60
     val seconds = remainingTime / 1000 % 60
@@ -231,7 +318,6 @@ fun CircularTimerProgress(totalTime: Long, remainingTime: Long) {
         String.format("%02d:%02d", minutes, seconds)
     }
 
-    // Колокольчик (окончание)
     val endTime = Calendar.getInstance().apply {
         add(Calendar.MILLISECOND, remainingTime.toInt())
     }
@@ -239,12 +325,10 @@ fun CircularTimerProgress(totalTime: Long, remainingTime: Long) {
 
     Box(contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.size(300.dp)) {
-            // Фон круга (серый)
             drawCircle(
                 color = alarmCardColor,
                 style = Stroke(width = 12.dp.toPx())
             )
-            // Прогресс (оранжевый)
             drawArc(
                 color = primaryColor,
                 startAngle = -90f,
@@ -261,13 +345,13 @@ fun CircularTimerProgress(totalTime: Long, remainingTime: Long) {
                     fontSize = 64.sp,
                     fontWeight = FontWeight.Light,
                     color = Color.White,
-                    fontFeatureSettings = "tnum" // Моноширинные цифры
+                    fontFeatureSettings = "tnum"
                 )
             )
             Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    painter = painterResource(R.drawable.alarm), // Используем ваш ресурс или Icons.Rounded.Notifications
+                    painter = painterResource(R.drawable.alarm),
                     contentDescription = null,
                     tint = Color.Gray,
                     modifier = Modifier.size(16.dp)
@@ -282,7 +366,11 @@ fun CircularTimerProgress(totalTime: Long, remainingTime: Long) {
     }
 }
 
-// Упрощенная реализация колеса прокрутки в стиле iOS
+/**
+ * БЕСКОНЕЧНЫЙ (LOOPING) TimerWheelPicker.
+ * Решает проблему с выбором "00" и "пустотой" после последнего элемента,
+ * так как список зациклен.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TimerWheelPicker(
@@ -291,42 +379,54 @@ fun TimerWheelPicker(
     onValueChange: (Int) -> Unit
 ) {
     val items = range.toList()
-    val listState = rememberLazyListState()
+    val itemCount = items.size
 
-    // Высота видимой области и одного элемента
+    // Создаем иллюзию бесконечности, используя очень большое число
+    val infiniteCount = Int.MAX_VALUE
+
+    // Стартуем с середины, чтобы можно было крутить и вверх, и вниз.
+    // Вычисляем индекс в середине, который соответствует началу списка (значению 0)
+    val middle = infiniteCount / 2
+    val startIndex = middle - (middle % itemCount)
+
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = startIndex)
+    val flingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
+
+    // Размеры
     val itemHeight = 40.dp
     val visibleItemsCount = 5
     val pickerHeight = itemHeight * visibleItemsCount
 
-    // ВАЖНО: Отступы, чтобы первый и последний элемент вставали РОВНО по центру
-    // (Высота контейнера - Высота элемента) / 2
+    // Отступ для центрирования выбранного элемента
     val verticalPadding = (pickerHeight - itemHeight) / 2
 
-    // "Магнит": список будет останавливаться ровно на элементах, а не между ними
-    val flingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
-
-    // Логика определения выбранного элемента
+    // Логика обновления значения (отслеживаем центральный элемент)
     LaunchedEffect(listState) {
-        snapshotFlow { listState.layoutInfo }
-            .collect { layoutInfo ->
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .map { (index, _) ->
+                // Определяем индекс элемента, который сейчас в центре
+                // Так как snapBehavior выравнивает по началу, мы используем layoutInfo
+                val layoutInfo = listState.layoutInfo
                 val viewportCenter = layoutInfo.viewportEndOffset / 2
-                var closestItemIndex = -1
-                var minDistance = Int.MAX_VALUE
 
-                // Ищем элемент, чей центр ближе всего к центру контейнера
-                for (item in layoutInfo.visibleItemsInfo) {
-                    val itemCenter = item.offset + (item.size / 2)
-                    val distance = kotlin.math.abs(viewportCenter - itemCenter)
-                    if (distance < minDistance) {
-                        minDistance = distance
-                        closestItemIndex = item.index
+                var closestIndex = index
+                var minDiff = Int.MAX_VALUE
+
+                for (visibleItem in layoutInfo.visibleItemsInfo) {
+                    val itemCenter = visibleItem.offset + (visibleItem.size / 2)
+                    val diff = kotlin.math.abs(viewportCenter - itemCenter)
+                    if (diff < minDiff) {
+                        minDiff = diff
+                        closestIndex = visibleItem.index
                     }
                 }
-
-                // Передаем значение, если нашли валидный индекс
-                if (closestItemIndex in items.indices) {
-                    onValueChange(items[closestItemIndex])
-                }
+                closestIndex
+            }
+            .distinctUntilChanged()
+            .collect { index ->
+                // Преобразуем "бесконечный" индекс в реальное значение из range
+                val realValue = items[index % itemCount]
+                onValueChange(realValue)
             }
     }
 
@@ -338,21 +438,23 @@ fun TimerWheelPicker(
     ) {
         LazyColumn(
             state = listState,
-            flingBehavior = flingBehavior, // Включаем "прилипание"
+            flingBehavior = flingBehavior,
             contentPadding = PaddingValues(vertical = verticalPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
         ) {
-            items(items) { item ->
-                // Вычисляем прозрачность и размер для эффекта "барабана"
+            // Используем infiniteCount для бесконечной прокрутки
+            items(infiniteCount) { index ->
+                val actualItem = items[index % itemCount]
+
+                // Визуальное выделение (прозрачность/размер)
                 val isSelected by remember {
                     derivedStateOf {
                         val layoutInfo = listState.layoutInfo
-                        val visibleItem = layoutInfo.visibleItemsInfo.find { it.index == items.indexOf(item) }
+                        val visibleItem = layoutInfo.visibleItemsInfo.find { it.index == index }
                         if (visibleItem != null) {
                             val viewportCenter = layoutInfo.viewportEndOffset / 2
                             val itemCenter = visibleItem.offset + (visibleItem.size / 2)
-                            // Если элемент в пределах половины своей высоты от центра — он выбран
                             kotlin.math.abs(viewportCenter - itemCenter) < (visibleItem.size / 2)
                         } else {
                             false
@@ -372,7 +474,7 @@ fun TimerWheelPicker(
                 ) {
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(
-                            text = String.format("%02d", item),
+                            text = String.format("%02d", actualItem),
                             style = TextStyle(
                                 color = color,
                                 fontSize = fontSize,
@@ -400,5 +502,4 @@ fun TimerWheelPicker(
 enum class TimerState {
     IDLE, RUNNING, PAUSED
 }
-
 // --- END OF TIMER COMPONENTS ---
