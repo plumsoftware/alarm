@@ -1,6 +1,7 @@
 package ru.plumsoftware.alarm.ui.screen
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,19 +16,16 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import android.content.Context
+import android.content.Context.MODE_PRIVATE
 import android.content.Intent
-import android.content.res.Configuration
-import android.content.res.Resources
 import android.icu.util.Calendar
 import android.os.Build
 import android.provider.Settings
 import android.view.View
-import android.view.ViewTreeObserver
-import android.view.Window
-import android.view.WindowInsetsController
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.Nullable
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -43,9 +41,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.filled.WatchLater
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.WatchLater
@@ -62,12 +58,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.util.lerp
+import androidx.core.content.edit
 import com.commandiron.wheel_picker_compose.WheelTimePicker
 import com.commandiron.wheel_picker_compose.core.WheelPickerDefaults
 import ru.plumsoftware.alarm.data.Alarm
@@ -78,9 +74,19 @@ import ru.plumsoftware.alarm.ui.components.SecondaryButton
 import ru.plumsoftware.alarm.ui.theme.primaryColor
 import ru.plumsoftware.alarm.ui.theme.switchCheckedColor
 import androidx.core.net.toUri
-import androidx.core.view.WindowCompat
+import com.yandex.mobile.ads.appopenad.AppOpenAd
+import com.yandex.mobile.ads.appopenad.AppOpenAdEventListener
+import com.yandex.mobile.ads.appopenad.AppOpenAdLoadListener
+import com.yandex.mobile.ads.appopenad.AppOpenAdLoader
+import com.yandex.mobile.ads.common.AdError
+import com.yandex.mobile.ads.common.AdRequestConfiguration
+import com.yandex.mobile.ads.common.AdRequestError
+import com.yandex.mobile.ads.common.ImpressionData
+import com.yandex.mobile.ads.common.MobileAds.initialize
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import ru.plumsoftware.alarm.MyApplication
 import ru.plumsoftware.alarm.data.alarmSounds
 import ru.plumsoftware.alarm.ui.theme.alarmCardColor
 import ru.plumsoftware.alarm.ui.theme.alarmGrayTextColor
@@ -107,6 +113,42 @@ fun AlarmListScreen(navController: NavController, context: Context) {
     var selectedAlarm by remember { mutableStateOf(Alarm(hour = 0, minute = 0)) }
     var sheetRoutes by remember { mutableStateOf(SheetRoutes()) }
     var listMode by remember { mutableStateOf(ListMode.MAIN) }
+
+    var isAdsLoading by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val activity = LocalActivity.current
+
+    LaunchedEffect(key1 = Unit) {
+        initialize(context) {
+            CoroutineScope(Dispatchers.IO).launch {
+                val sp = context.getSharedPreferences("alarm_settings", MODE_PRIVATE)
+                val count = sp.getInt("count_of_launches", 0)
+
+                if (count <= 2) {
+                    sp.edit {
+                        putInt("count_of_launches", (count + 1))
+                    }
+                    return@launch
+                } else {
+                    withContext(Dispatchers.Main) {
+                        isAdsLoading = true
+                    }
+                    withContext(Dispatchers.Main) {
+                        showOpenAds(
+                            context = context,
+                            activity = activity,
+                            onLoaded = {
+                                isAdsLoading = false
+                            },
+                            onFailed = {
+                                isAdsLoading = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
 
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp.dp
@@ -288,6 +330,19 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                 }
             }
 
+            if (isAdsLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Gray.copy(alpha = 0.3f))
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = primaryColor,
+                    )
+                }
+            }
+
             // --- BOTTOM BAR (СЛОЙ 1: РАЗМЫТЫЙ ФОН) ---
             Box(
                 modifier = Modifier
@@ -310,7 +365,10 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                         modifier = Modifier
                             .padding(all = 8.dp)
                             .clickable(true) { selectedBottomItemIndex = 0 },
-                        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                        verticalArrangement = Arrangement.spacedBy(
+                            8.dp,
+                            Alignment.CenterVertically
+                        ),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Image(
@@ -330,7 +388,10 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                         modifier = Modifier
                             .padding(all = 8.dp)
                             .clickable(true) { selectedBottomItemIndex = 1 },
-                        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                        verticalArrangement = Arrangement.spacedBy(
+                            8.dp,
+                            Alignment.CenterVertically
+                        ),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
@@ -350,7 +411,10 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                         modifier = Modifier
                             .padding(all = 8.dp)
                             .clickable(true) { selectedBottomItemIndex = 2 },
-                        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                        verticalArrangement = Arrangement.spacedBy(
+                            8.dp,
+                            Alignment.CenterVertically
+                        ),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
@@ -1067,84 +1131,44 @@ fun AlarmListScreen(navController: NavController, context: Context) {
     }
 }
 
-fun setupEdgeToEdge(window: Window?, resources: Resources?) {
-    if (window != null) {
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-    }
+private fun showOpenAds(context: Context, activity: Activity?, onLoaded: () -> Unit, onFailed: () -> Unit) {
+    var mAppOpenAd: AppOpenAd?
+    val appOpenAdLoader = AppOpenAdLoader(context)
+    val AD_UNIT_ID: String = MyApplication.adsConfig.OPEN_MAIN_SCREEN_AD
+    val adRequestConfiguration = AdRequestConfiguration.Builder(AD_UNIT_ID).build()
 
-    // Определяем текущую тему (светлая/темная)
-    val nightModeFlags = resources?.configuration?.uiMode?.and(Configuration.UI_MODE_NIGHT_MASK)
-    val isDarkTheme = true
-
-    var systemUiVisibilityFlags = (
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            )
-
-    // Делаем статус бар и нав бар прозрачными
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-        // Настройка цвета иконок для Android 5–10
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!isDarkTheme) {
-                // СВЕТЛАЯ ТЕМА — ТЁМНЫЕ ИКОНКИ
-                systemUiVisibilityFlags =
-                    systemUiVisibilityFlags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-            }
-            // Для тёмной темы оставляем светлые иконки (по умолчанию)
+    val appOpenAdEventListener: AppOpenAdEventListener = object : AppOpenAdEventListener {
+        override fun onAdShown() {
+            onLoaded()
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (!isDarkTheme) {
-                // СВЕТЛАЯ ТЕМА — ТЁМНЫЕ ИКОНКИ НАВИГАЦИИ
-                systemUiVisibilityFlags =
-                    systemUiVisibilityFlags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-            }
-            // Для тёмной темы оставляем светлые иконки (по умолчанию)
+        override fun onAdDismissed() {}
+
+        override fun onAdFailedToShow(adError: AdError) {
+            onFailed()
         }
 
-        @Suppress("DEPRECATION")
-        window?.decorView?.systemUiVisibility = systemUiVisibilityFlags
-        @Suppress("DEPRECATION")
-        window?.statusBarColor = android.graphics.Color.TRANSPARENT
-        @Suppress("DEPRECATION")
-        window?.navigationBarColor = android.graphics.Color.TRANSPARENT
+        override fun onAdClicked() {}
+
+        override fun onAdImpression(@Nullable impressionData: ImpressionData?) {}
     }
 
-    // Для Android 10+ убираем затемнение под нав баром
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        @Suppress("DEPRECATION")
-        window?.isNavigationBarContrastEnforced = false
-    }
+    val appOpenAdLoadListener: AppOpenAdLoadListener = object : AppOpenAdLoadListener {
 
-    // Для Android 11+ используем новый API
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        window?.setDecorFitsSystemWindows(false)
+        override fun onAdFailedToLoad(error: AdRequestError) {
+            onFailed()
+        }
 
-        val controller = window?.insetsController
-        controller?.let {
-            // Убеждаемся, что нав бар остаётся видимым
-            it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-
-            // Настройка цвета иконок для Android 11+
-            if (!isDarkTheme) {
-                // СВЕТЛАЯ ТЕМА — ТЁМНЫЕ ИКОНКИ
-                it.setSystemBarsAppearance(
-                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
-                            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
-                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
-                            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-                )
-            } else {
-                // ТЁМНАЯ ТЕМА — СВЕТЛЫЕ ИКОНКИ (убираем флаги светлых иконок)
-                it.setSystemBarsAppearance(
-                    0,
-                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
-                            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-                )
-            }
+        override fun onAdLoaded(appOpenAd: AppOpenAd) {
+            mAppOpenAd = appOpenAd
+            mAppOpenAd.setAdEventListener(appOpenAdEventListener)
+            if (activity != null)
+                mAppOpenAd.show(activity)
         }
     }
+
+    appOpenAdLoader.setAdLoadListener(appOpenAdLoadListener)
+    appOpenAdLoader.loadAd(adRequestConfiguration)
 }
 
 @Composable

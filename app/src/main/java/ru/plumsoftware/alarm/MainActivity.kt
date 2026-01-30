@@ -96,23 +96,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        initialize(this) {
-            CoroutineScope(Dispatchers.IO).launch {
-                val sp = getSharedPreferences("alarm_settings", MODE_PRIVATE)
-                val count = sp.getInt("count_of_launches", 0)
-
-                if (count <= 2) {
-                    sp.edit {
-                        putInt("count_of_launches", (count + 1))
-                    }
-                    return@launch
-                } else {
-                    withContext(Dispatchers.Main) {
-                        showOpenAds()
-                    }
-                }
-            }
-        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(
                     this,
@@ -152,41 +135,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-    }
-
-    private fun showOpenAds() {
-        var mAppOpenAd: AppOpenAd?
-        val appOpenAdLoader = AppOpenAdLoader(this)
-        val AD_UNIT_ID: String = MyApplication.adsConfig.OPEN_MAIN_SCREEN_AD
-        val adRequestConfiguration = AdRequestConfiguration.Builder(AD_UNIT_ID).build()
-
-        val appOpenAdEventListener: AppOpenAdEventListener = object : AppOpenAdEventListener {
-            override fun onAdShown() {}
-
-            override fun onAdDismissed() {}
-
-            override fun onAdFailedToShow(adError: AdError) {}
-
-            override fun onAdClicked() {}
-
-            override fun onAdImpression(@Nullable impressionData: ImpressionData?) {}
-        }
-
-        val appOpenAdLoadListener: AppOpenAdLoadListener = object : AppOpenAdLoadListener {
-
-            override fun onAdFailedToLoad(error: AdRequestError) {
-
-            }
-
-            override fun onAdLoaded(appOpenAd: AppOpenAd) {
-                mAppOpenAd = appOpenAd
-                mAppOpenAd.setAdEventListener(appOpenAdEventListener)
-                mAppOpenAd.show(this@MainActivity)
-            }
-        }
-
-        appOpenAdLoader.setAdLoadListener(appOpenAdLoadListener)
-        appOpenAdLoader.loadAd(adRequestConfiguration)
     }
 
     private fun setupEdgeToEdge() {
