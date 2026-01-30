@@ -21,6 +21,7 @@ import android.content.Intent
 import android.icu.util.Calendar
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import android.view.View
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -1131,11 +1132,15 @@ fun AlarmListScreen(navController: NavController, context: Context) {
     }
 }
 
-private fun showOpenAds(context: Context, activity: Activity?, onLoaded: () -> Unit, onFailed: () -> Unit) {
+private fun showOpenAds(
+    context: Context,
+    activity: Activity?,
+    onLoaded: () -> Unit,
+    onFailed: () -> Unit,
+    retryCount: Int = 3 // Добавляем параметр для количества попыток
+) {
     var mAppOpenAd: AppOpenAd?
-    val appOpenAdLoader = AppOpenAdLoader(context)
     val AD_UNIT_ID: String = MyApplication.adsConfig.OPEN_MAIN_SCREEN_AD
-    val adRequestConfiguration = AdRequestConfiguration.Builder(AD_UNIT_ID).build()
 
     val appOpenAdEventListener: AppOpenAdEventListener = object : AppOpenAdEventListener {
         override fun onAdShown() {
@@ -1153,22 +1158,39 @@ private fun showOpenAds(context: Context, activity: Activity?, onLoaded: () -> U
         override fun onAdImpression(@Nullable impressionData: ImpressionData?) {}
     }
 
-    val appOpenAdLoadListener: AppOpenAdLoadListener = object : AppOpenAdLoadListener {
-
-        override fun onAdFailedToLoad(error: AdRequestError) {
+    // Функция для рекурсивной загрузки с повторными попытками
+    fun loadAd(attempt: Int) {
+        if (attempt <= 0) {
             onFailed()
+            return
         }
 
-        override fun onAdLoaded(appOpenAd: AppOpenAd) {
-            mAppOpenAd = appOpenAd
-            mAppOpenAd.setAdEventListener(appOpenAdEventListener)
-            if (activity != null)
-                mAppOpenAd.show(activity)
+        val appOpenAdLoader = AppOpenAdLoader(context)
+        val adRequestConfiguration = AdRequestConfiguration.Builder(AD_UNIT_ID).build()
+
+        val appOpenAdLoadListener: AppOpenAdLoadListener = object : AppOpenAdLoadListener {
+            override fun onAdFailedToLoad(error: AdRequestError) {
+                // Пытаемся загрузить снова, если остались попытки
+                loadAd(attempt - 1)
+            }
+
+            override fun onAdLoaded(appOpenAd: AppOpenAd) {
+                mAppOpenAd = appOpenAd
+                mAppOpenAd.setAdEventListener(appOpenAdEventListener)
+                if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
+                    mAppOpenAd.show(activity)
+                } else {
+                    onFailed()
+                }
+            }
         }
+
+        appOpenAdLoader.setAdLoadListener(appOpenAdLoadListener)
+        appOpenAdLoader.loadAd(adRequestConfiguration)
     }
 
-    appOpenAdLoader.setAdLoadListener(appOpenAdLoadListener)
-    appOpenAdLoader.loadAd(adRequestConfiguration)
+    // Начинаем загрузку с указанным количеством попыток
+    loadAd(retryCount)
 }
 
 @Composable
