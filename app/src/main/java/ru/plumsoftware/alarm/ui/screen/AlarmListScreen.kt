@@ -1137,7 +1137,7 @@ private fun showOpenAds(
     activity: Activity?,
     onLoaded: () -> Unit,
     onFailed: () -> Unit,
-    retryCount: Int = 3 // Добавляем параметр для количества попыток
+    retryCount: Int = 5
 ) {
     var mAppOpenAd: AppOpenAd?
     val AD_UNIT_ID: String = MyApplication.adsConfig.OPEN_MAIN_SCREEN_AD
@@ -1170,8 +1170,10 @@ private fun showOpenAds(
 
         val appOpenAdLoadListener: AppOpenAdLoadListener = object : AppOpenAdLoadListener {
             override fun onAdFailedToLoad(error: AdRequestError) {
-                // Пытаемся загрузить снова, если остались попытки
-                loadAd(attempt - 1)
+                // 2. Используем Handler для задержки в 500 мс перед следующей попыткой
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    loadAd(attempt - 1)
+                }, 500)
             }
 
             override fun onAdLoaded(appOpenAd: AppOpenAd) {
@@ -1189,7 +1191,7 @@ private fun showOpenAds(
         appOpenAdLoader.loadAd(adRequestConfiguration)
     }
 
-    // Начинаем загрузку с указанным количеством попыток
+    // Начинаем загрузку
     loadAd(retryCount)
 }
 
