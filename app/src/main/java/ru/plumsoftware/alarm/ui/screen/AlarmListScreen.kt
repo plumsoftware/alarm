@@ -84,6 +84,10 @@ import com.yandex.mobile.ads.common.AdRequestConfiguration
 import com.yandex.mobile.ads.common.AdRequestError
 import com.yandex.mobile.ads.common.ImpressionData
 import com.yandex.mobile.ads.common.MobileAds.initialize
+import com.yandex.mobile.ads.interstitial.InterstitialAd
+import com.yandex.mobile.ads.interstitial.InterstitialAdEventListener
+import com.yandex.mobile.ads.interstitial.InterstitialAdLoadListener
+import com.yandex.mobile.ads.interstitial.InterstitialAdLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -114,6 +118,37 @@ fun AlarmListScreen(navController: NavController, context: Context) {
     var selectedAlarm by remember { mutableStateOf(Alarm(hour = 0, minute = 0)) }
     var sheetRoutes by remember { mutableStateOf(SheetRoutes()) }
     var listMode by remember { mutableStateOf(ListMode.MAIN) }
+
+    var myInterstitialAds: InterstitialAd? by remember { mutableStateOf(null) }
+    val interstitialAdsLoader = remember { InterstitialAdLoader(context) }
+    val interstitialConfig = remember {
+        AdRequestConfiguration.Builder(MyApplication.adsConfig.INTERSTITIAL_ADS).build()
+    }
+
+    LaunchedEffect(key1 = Unit) {
+        interstitialAdsLoader.setAdLoadListener(object : InterstitialAdLoadListener {
+            override fun onAdLoaded(interstitialAd: InterstitialAd) {
+                myInterstitialAds = interstitialAd
+                // Настраиваем слушатель закрытия сразу
+                myInterstitialAds?.setAdEventListener(object : InterstitialAdEventListener {
+                    override fun onAdClicked() {}
+                    override fun onAdDismissed() {
+                        navController.navigateUp()
+                    }
+
+                    override fun onAdFailedToShow(adError: AdError) {
+                        navController.navigateUp()
+                    }
+
+                    override fun onAdImpression(impressionData: ImpressionData?) {}
+                    override fun onAdShown() {}
+                })
+            }
+
+            override fun onAdFailedToLoad(error: AdRequestError) {}
+        })
+        interstitialAdsLoader.loadAd(interstitialConfig)
+    }
 
     var isAdsLoading by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -633,6 +668,10 @@ fun AlarmListScreen(navController: NavController, context: Context) {
                                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                             alarmManager.canScheduleExactAlarms()
                                         } else true
+
+                                    if (activity != null)
+                                        myInterstitialAds?.show(activity)
+
                                     if (canSchedule) {
                                         coroutineScope.launch {
                                             val savedAlarm = if (selectedAlarm.id == 0) {
